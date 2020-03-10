@@ -3,6 +3,7 @@ package zfields
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/torlangballe/zui"
 	"github.com/torlangballe/zutil/zgeo"
@@ -78,7 +79,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	for i, item := range froot.Children {
 		var f Field
-		if f.makeFromReflectItem(v.fieldOwner, structure, item, i) {
+		if f.makeFromReflectItem(&v.fieldOwner, structure, item, i) {
 			v.fields = append(v.fields, f)
 		}
 	}
@@ -101,7 +102,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 			if rowStack != nil {
 				rowStruct := v.GetRowData(i)
 				//				v.handleUpdate(edited, i)
-				fieldsUpdateStack(v.fieldOwner, rowStack, rowStruct)
+				updateStack(&v.fieldOwner, rowStack, rowStruct)
 			}
 		}
 	}
@@ -190,7 +191,7 @@ func (v *TableView) FlushDataToRow(i int) {
 	rowStack, _ := v.List.GetVisibleRowViewFromIndex(i).(*zui.StackView)
 	if rowStack != nil {
 		rowStruct := v.GetRowData(i)
-		fieldsUpdateStack(v.fieldOwner, rowStack, rowStruct)
+		updateStack(&v.fieldOwner, rowStack, rowStruct)
 	}
 }
 
@@ -202,10 +203,10 @@ func createRow(v *TableView, rowSize zgeo.Size, i int) zui.View {
 	rowStack.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
 	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
-	fieldsBuildStack(v.fieldOwner, rowStack, rowStruct, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, i)
+	buildStack(&v.fieldOwner, rowStack, rowStruct, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, i)
 	// edited := false
 	// v.handleUpdate(edited, i)
-	fieldsUpdateStack(v.fieldOwner, rowStack, v.GetRowData(i))
+	updateStack(&v.fieldOwner, rowStack, v.GetRowData(i))
 	return rowStack
 }
 
@@ -226,12 +227,16 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 				h.ImageSize = zgeo.SizeBoth(height - 8)
 			}
 			h.ImagePath = f.FixedPath
+			fmt.Println("makeHeaderFields:", f.Name, h.ImageSize, h.ImagePath, f)
 		}
 		if f.Flags&(flagHasHeaderImage|flagNoHeader) == 0 {
 			h.Title = f.Title
 			if h.Title == "" {
 				h.Title = f.Name
 			}
+		}
+		if f.Tooltip != "" && !strings.HasPrefix(f.Tooltip, ".") {
+			h.Tip = f.Tooltip
 		}
 		h.Align |= zgeo.Left | zgeo.VertCenter
 		headers = append(headers, h)
