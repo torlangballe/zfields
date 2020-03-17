@@ -184,7 +184,6 @@ func (v *TableView) SetStructureList(list interface{}) {
 }
 
 func (v *TableView) FlashRow() {
-
 }
 
 func (v *TableView) FlushDataToRow(i int) {
@@ -203,7 +202,7 @@ func createRow(v *TableView, rowSize zgeo.Size, i int) zui.View {
 	rowStack.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
 	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
-	buildStack(&v.fieldOwner, rowStack, rowStruct, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, i)
+	buildStack(v.ObjectName(), &v.fieldOwner, rowStack, rowStruct, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, i)
 	// edited := false
 	// v.handleUpdate(edited, i)
 	updateStack(&v.fieldOwner, rowStack, v.GetRowData(i))
@@ -229,7 +228,7 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 			h.ImagePath = f.FixedPath
 			fmt.Println("makeHeaderFields:", f.Name, h.ImageSize, h.ImagePath, f)
 		}
-		if f.Flags&(flagHasHeaderImage|flagNoHeader) == 0 {
+		if f.Flags&(flagHasHeaderImage|flagNoTitle) == 0 {
 			h.Title = f.Title
 			if h.Title == "" {
 				h.Title = f.Name
