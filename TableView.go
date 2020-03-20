@@ -226,7 +226,7 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 				h.ImageSize = zgeo.SizeBoth(height - 8)
 			}
 			h.ImagePath = f.FixedPath
-			fmt.Println("makeHeaderFields:", f.Name, h.ImageSize, h.ImagePath, f)
+			// fmt.Println("makeHeaderFields:", f.Name, h.ImageSize, h.ImagePath, f)
 		}
 		if f.Flags&(flagHasHeaderImage|flagNoTitle) == 0 {
 			h.Title = f.Title
