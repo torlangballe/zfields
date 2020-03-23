@@ -71,7 +71,7 @@ type Field struct {
 	Password      bool
 	Height        float64
 	Weight        float64
-	Enum          zdict.NamedValues
+	Enum          string
 	LocalEnum     string
 	Size          zgeo.Size
 	Flags         int
@@ -205,7 +205,7 @@ func makeTimeView(structure interface{}, item zreflect.Item, f *Field, i int) zu
 	t := item.Interface.(time.Time)
 	format := f.Format
 	if format == "" {
-		format = "15:04 01-Jan-06"
+		format = "15:04 02-Jan-06"
 	}
 	// fmt.Println("makeTimeView:", format)
 	if format == "nice" {
@@ -222,8 +222,7 @@ func makeTimeView(structure interface{}, item zreflect.Item, f *Field, i int) zu
 	return tv
 }
 
-func makeText(fo *fieldOwner, structure interface{}, item zreflect.Item, f *Field, i int) zui.View {
-	// fmt.Println("make Text:", item.FieldName, f.Name, fo.structure)
+func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 	str := ""
 	if item.Package == "time" && item.TypeName == "Duration" {
 		t := ztime.DurSeconds(time.Duration(item.Value.Int()))
@@ -235,6 +234,12 @@ func makeText(fo *fieldOwner, structure interface{}, item zreflect.Item, f *Fiel
 		}
 		str = fmt.Sprintf(format, item.Value.Interface())
 	}
+	return str
+}
+
+func makeText(fo *fieldOwner, structure interface{}, item zreflect.Item, f *Field, i int) zui.View {
+	// fmt.Println("make Text:", item.FieldName, f.Name, fo.structure)
+	str := getTextFromNumberishItem(item, f)
 	if f.IsStatic() {
 		label := zui.LabelNew(str)
 		j := f.Justify
@@ -327,7 +332,6 @@ func getStructItems(structData interface{}) []zreflect.Item {
 func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 	children := getStructItems(structData)
 
-	// fmt.Println("updateStack1:", len(rootItems.Children), len(fo.fields), len(stack.GetChildren()))
 	// fmt.Println("updateStack:", stack.ObjectName(), structData)
 	for i, item := range children {
 		f := findFieldWithIndex(&fo.fields, i)
@@ -340,20 +344,36 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 		}
 		view := *fview
 		called := callActionHandlerFunc(structData, 0, f, DataChangedAction, item, &view)
-		// fmt.Println("updateStack:", f.Name, f.Kind, called)
+		// fmt.Println("updateStack:", f.Name, f.Kind, f.Enum)
 		if called {
 			continue
 		}
-		if f.Enum != nil && f.Kind != zreflect.KindSlice || f.LocalEnum != "" {
+		if f.Enum != "" && f.Kind != zreflect.KindSlice || f.LocalEnum != "" {
 			menu := view.(*zui.MenuView)
+			var enum zdict.NamedValues
+			if f.Enum != "" {
+				enum, _ = fieldEnums[f.Enum]
+				// fmt.Println("UpdateStack Enum:", f.Name)
+				// zdict.DumpNamedValues(enum)
+			} else {
+				ei := findLocalField(&children, f.LocalEnum)
+				zlog.Assert(ei != nil, f.Name, f.LocalEnum)
+				enum, _ = ei.Interface.(zdict.NamedValues)
+			}
+			zlog.Assert(enum != nil, f.Name, f.LocalEnum, f.Enum)
+			menu.UpdateValues(enum)
+			//			if f.Name == "Stream" {
 			// fmt.Println("FUS:", f.Name, item.Interface, item.Kind, reflect.ValueOf(item.Interface).Type())
+			// menu.Dump()
+			//			}
+			//!!!!!!!!			menu.Update()
 			menu.SetWithIdOrValue(item.Interface)
 			continue
 		}
 		if f.LocalEnable != "" {
 			eItem := findLocalField(&children, f.LocalEnable)
 			e, got := eItem.Interface.(bool)
-			fmt.Println("updateStack localEnable:", f.Name, f.LocalEnable, e, got)
+			// fmt.Println("updateStack localEnable:", f.Name, f.LocalEnable, e, got)
 			if got {
 				parent := zui.ViewGetNative(view).Parent()
 				//				if parent != nil && parent != stack(strings.HasPrefix(parent.ObjectName(), "$labelize.") || strings.HasPrefix(parent.ObjectName(), "$labledCheckBoxStack.")) {
@@ -407,6 +427,13 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 			v := cv.Value()
 			if v != b {
 				cv.SetValue(b)
+			}
+
+		case zreflect.KindInt, zreflect.KindFloat:
+			tv, _ := view.(*zui.TextView)
+			if tv != nil {
+				str := getTextFromNumberishItem(item, f)
+				tv.SetText(str)
 			}
 
 		case zreflect.KindString, zreflect.KindFunc:
@@ -642,9 +669,11 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 				view = menu
 				menu.SetWithIdOrValue(item.Interface)
 			}
-		} else if f.Enum != nil {
+		} else if f.Enum != "" {
 			//			fmt.Printf("make enum: %s %v\n", f.Name, item)
-			view = makeMenu(structData, item, f, i, f.Enum)
+			enum, _ := fieldEnums[f.Enum]
+			zlog.Assert(enum != nil)
+			view = makeMenu(structData, item, f, i, enum)
 			exp = zgeo.AlignmentNone
 		} else {
 			switch f.Kind {
@@ -851,7 +880,7 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 				if fieldEnums[val] == nil {
 					zlog.Error(nil, "no such enum:", val)
 				}
-				f.Enum, _ = fieldEnums[val]
+				f.Enum = val
 			}
 		case "notitle":
 			f.Flags |= flagNoTitle
@@ -1024,7 +1053,7 @@ func fieldViewToDataItem(structure interface{}, f *Field, view zui.View, showErr
 	children := getStructItems(structure)
 	// fmt.Println("fieldViewToDataItem before:", f.Name, f.Index, len(children), "s:", structure)
 	item := children[f.Index]
-	if (f.Enum != nil || f.LocalEnum != "") && !f.IsStatic() {
+	if (f.Enum != "" || f.LocalEnum != "") && !f.IsStatic() {
 		mv, _ := view.(*zui.MenuView)
 		if mv != nil {
 			iface := mv.GetCurrentIdOrValue()

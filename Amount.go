@@ -1,8 +1,6 @@
 package zfields
 
 import (
-	"fmt"
-
 	"github.com/torlangballe/zui"
 	"github.com/torlangballe/zutil/zgeo"
 	"github.com/torlangballe/zutil/zlog"
@@ -14,7 +12,7 @@ import (
 type AmountBarValue float64
 
 func (a AmountBarValue) ZHandleAction(f *Field, action ActionType, view *zui.View) bool {
-	fmt.Println("ABV Handle Action:", f.Name, action)
+	// fmt.Println("ABV Handle Action:", f.Name, action)
 	switch action {
 	case EditedAction, DataChangedAction:
 		zlog.Assert(view != nil && *view != nil)
@@ -27,6 +25,12 @@ func (a AmountBarValue) ZHandleAction(f *Field, action ActionType, view *zui.Vie
 			min = 100
 		}
 		progress := zui.AmountViewBarNew(min)
+		if f.Color != "" {
+			col := zgeo.ColorFromString(f.Color)
+			if col.Valid {
+				progress.SetColor(col)
+			}
+		}
 		*view = progress
 		return true
 	}

@@ -217,7 +217,7 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 		if f.Height == 0 {
 			h.Height = height - 6
 		}
-		if f.Kind == zreflect.KindString && f.Enum == nil {
+		if f.Kind == zreflect.KindString && f.Enum == "" {
 			h.Align = zgeo.HorExpand
 		}
 		if f.Flags&flagHasHeaderImage != 0 {
