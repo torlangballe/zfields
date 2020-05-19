@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/torlangballe/zui"
+	"github.com/torlangballe/zutil/zbool"
 	"github.com/torlangballe/zutil/zdict"
 	"github.com/torlangballe/zutil/zfloat"
 	"github.com/torlangballe/zutil/zgeo"
@@ -86,11 +87,11 @@ type Field struct {
 // FieldStringer is an interface that allows simple structs to be displayed like labels in fields and menus.
 // We don't want to use String() as complex structs can have these for debugging
 type ActionHandler interface {
-	ZHandleAction(id string, i int, f *Field, action ActionType, view *zui.View) bool
+	HandleAction(id string, i int, f *Field, action ActionType, view *zui.View) bool
 }
 
 type ActionFieldHandler interface {
-	ZHandleAction(f *Field, action ActionType, view *zui.View) bool
+	HandleAction(f *Field, action ActionType, view *zui.View) bool
 }
 
 type fieldOwner struct {
@@ -103,10 +104,10 @@ type fieldOwner struct {
 
 func callActionHandlerFunc(structure interface{}, i int, f *Field, action ActionType, item zreflect.Item, view *zui.View) bool {
 	fh, _ := structure.(ActionHandler)
-	// fmt.Println("callFieldHandler1", fh)
+	// zlog.Info("callFieldHandler1", fh)
 	var result bool
 	if fh != nil {
-		result = fh.ZHandleAction(f.ID, i, f, action, view)
+		result = fh.HandleAction(f.ID, i, f, action, view)
 	}
 
 	if view != nil && *view != nil {
@@ -122,7 +123,7 @@ func callActionHandlerFunc(structure interface{}, i int, f *Field, action Action
 						if fh2 != nil {
 							id2 := zstr.FirstToLowerWithAcronyms(parent.View.ObjectName())
 							f2 := fv.fieldOwner.findFieldWithID(id2)
-							fh2.ZHandleAction(id2, i, f2, action, &parent.View)
+							fh2.HandleAction(id2, i, f2, action, &parent.View)
 						}
 					}
 					first = false
@@ -133,9 +134,9 @@ func callActionHandlerFunc(structure interface{}, i int, f *Field, action Action
 	}
 	if !result {
 		aih, _ := item.Interface.(ActionFieldHandler)
-		// fmt.Println("callActionHandlerFunc:", f.Name, action, aih, item)
+		// zlog.Info("callActionHandlerFunc:", f.Name, action, aih, item)
 		if aih != nil {
-			result = aih.ZHandleAction(f, action, view)
+			result = aih.HandleAction(f, action, view)
 		}
 	}
 	return result
@@ -161,7 +162,7 @@ func (f Field) IsStatic() bool {
 }
 
 func makeButton(structure interface{}, item zreflect.Item, f *Field, i int) *zui.Button {
-	// fmt.Println("makeButton:", f.Name, f.Height)
+	// zlog.Info("makeButton:", f.Name, f.Height)
 	format := f.Format
 	if format == "" {
 		format = "%v"
@@ -175,10 +176,10 @@ func makeButton(structure interface{}, item zreflect.Item, f *Field, i int) *zui
 		name = f.Title
 	}
 	button := zui.ButtonNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
-	button.TextInfo.Color = zgeo.ColorRed
+	button.TextInfo.Color = zgeo.ColorWhite
 	button.TextXMargin = 0
 	button.SetPressedHandler(func() {
-		fmt.Println("Button pressed", button.ObjectName(), button.Font())
+		zlog.Info("Button pressed", button.ObjectName(), button.Font())
 		view := zui.View(button)
 		callActionHandlerFunc(structure, i, f, PressedAction, item, &view)
 	})
@@ -189,7 +190,7 @@ func makeMenu(structure interface{}, item zreflect.Item, f *Field, i int, items 
 	menu := zui.MenuViewNew(f.Name+"Menu", items, item.Interface, f.IsStatic())
 	menu.SetMaxWidth(f.MaxWidth)
 
-	// fmt.Println("makeMenu2:", f.Name, items.Count(), item.Interface, item.TypeName, item.Kind)
+	// zlog.Info("makeMenu2:", f.Name, items.Count(), item.Interface, item.TypeName, item.Kind)
 
 	menu.ChangedHandler(func(id, name string, value interface{}) {
 		//		zlog.Debug(iface, f.Name)
@@ -207,7 +208,7 @@ func makeTimeView(structure interface{}, item zreflect.Item, f *Field, i int) zu
 	if format == "" {
 		format = "15:04 02-Jan-06"
 	}
-	// fmt.Println("makeTimeView:", format)
+	// zlog.Info("makeTimeView:", format)
 	if format == "nice" {
 		str = ztime.GetNice(t, f.Flags&flagHasSeconds != 0)
 	} else {
@@ -226,7 +227,7 @@ func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 	str := ""
 	if item.Package == "time" && item.TypeName == "Duration" {
 		t := ztime.DurSeconds(time.Duration(item.Value.Int()))
-		str = ztime.GetSecsAsHMSString(t, f.Flags&flagHasHours != 0, f.Flags&flagHasMinutes != 0, f.Flags&flagHasSeconds != 0, 0)
+		str = ztime.GetSecsAsHMSString(t, f.Flags&flagHasSeconds != 0, 0)
 	} else {
 		format := f.Format
 		if format == "" {
@@ -238,7 +239,7 @@ func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 }
 
 func makeText(fo *fieldOwner, structure interface{}, item zreflect.Item, f *Field, i int) zui.View {
-	// fmt.Println("make Text:", item.FieldName, f.Name, fo.structure)
+	// zlog.Info("make Text:", item.FieldName, f.Name, fo.structure)
 	str := getTextFromNumberishItem(item, f)
 	if f.IsStatic() {
 		label := zui.LabelNew(str)
@@ -271,22 +272,22 @@ func makeText(fo *fieldOwner, structure interface{}, item zreflect.Item, f *Fiel
 	tv.UpdateSecs = f.UpdateSecs
 	tv.ChangedHandler(func(view zui.View) {
 		fieldViewToDataItem(structure, f, tv, true)
-		// fmt.Println("Changed text1:", structure)
+		// zlog.Info("Changed text1:", structure)
 		if fo.handleUpdate != nil {
 			edited := true
 			fo.handleUpdate(edited, i)
 		}
-		// fmt.Println("Changed text:", structure)
+		// zlog.Info("Changed text:", structure)
 		view = zui.View(tv)
 		callActionHandlerFunc(structure, i, f, EditedAction, item, &view)
 	})
 	tv.KeyHandler(func(view zui.View, key zui.KeyboardKey, mods zui.KeyboardModifier) {
-		fmt.Println("keyup!")
+		zlog.Info("keyup!")
 	})
 	return tv
 }
 
-func makeCheckbox(structure interface{}, item zreflect.Item, f *Field, i int, b zui.BoolInd) zui.View {
+func makeCheckbox(structure interface{}, item zreflect.Item, f *Field, i int, b zbool.BoolInd) zui.View {
 	cv := zui.CheckBoxNew(b)
 	cv.SetObjectName(f.ID)
 	cv.ValueHandler(func(v zui.View) {
@@ -299,7 +300,7 @@ func makeCheckbox(structure interface{}, item zreflect.Item, f *Field, i int, b 
 
 func fieldsMakeImage(structure interface{}, item zreflect.Item, f *Field, i int) zui.View {
 	iv := zui.ImageViewNew("", f.Size)
-	iv.SetMaxSize(f.Size)
+	iv.SetMinSize(f.Size)
 	iv.SetObjectName(f.ID)
 	iv.SetPressedHandler(func() {
 		view := zui.View(iv)
@@ -332,7 +333,8 @@ func getStructItems(structData interface{}) []zreflect.Item {
 func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 	children := getStructItems(structData)
 
-	// fmt.Println("updateStack:", stack.ObjectName(), structData)
+	// zlog.Info("updateStack:", stack.ObjectName(), structData)
+
 	for i, item := range children {
 		f := findFieldWithIndex(&fo.fields, i)
 		if f == nil {
@@ -344,7 +346,7 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 		}
 		view := *fview
 		called := callActionHandlerFunc(structData, 0, f, DataChangedAction, item, &view)
-		// fmt.Println("updateStack:", f.Name, f.Kind, f.Enum)
+		// zlog.Info("updateStack:", f.Name, f.Kind, f.Enum)
 		if called {
 			continue
 		}
@@ -353,7 +355,7 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 			var enum zdict.NamedValues
 			if f.Enum != "" {
 				enum, _ = fieldEnums[f.Enum]
-				// fmt.Println("UpdateStack Enum:", f.Name)
+				// zlog.Info("UpdateStack Enum:", f.Name)
 				// zdict.DumpNamedValues(enum)
 			} else {
 				ei := findLocalField(&children, f.LocalEnum)
@@ -363,7 +365,7 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 			zlog.Assert(enum != nil, f.Name, f.LocalEnum, f.Enum)
 			menu.UpdateValues(enum)
 			//			if f.Name == "Stream" {
-			// fmt.Println("FUS:", f.Name, item.Interface, item.Kind, reflect.ValueOf(item.Interface).Type())
+			// zlog.Info("FUS:", f.Name, item.Interface, item.Kind, reflect.ValueOf(item.Interface).Type())
 			// menu.Dump()
 			//			}
 			//!!!!!!!!			menu.Update()
@@ -373,7 +375,7 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 		if f.LocalEnable != "" {
 			eItem := findLocalField(&children, f.LocalEnable)
 			e, got := eItem.Interface.(bool)
-			// fmt.Println("updateStack localEnable:", f.Name, f.LocalEnable, e, got)
+			// zlog.Info("updateStack localEnable:", f.Name, f.LocalEnable, e, got)
 			if got {
 				parent := zui.ViewGetNative(view).Parent()
 				//				if parent != nil && parent != stack(strings.HasPrefix(parent.ObjectName(), "$labelize.") || strings.HasPrefix(parent.ObjectName(), "$labledCheckBoxStack.")) {
@@ -422,7 +424,7 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 			break
 
 		case zreflect.KindBool:
-			b := zui.BoolIndFromBool(item.Value.Interface().(bool))
+			b := zbool.ToBoolInd(item.Value.Interface().(bool))
 			cv := view.(*zui.CheckBox)
 			v := cv.Value()
 			if v != b {
@@ -443,7 +445,9 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 				if f.Kind == zreflect.KindString {
 					path = str
 				}
-				if path == "" {
+				if path != "" && strings.Contains(f.FixedPath, "*") {
+					path = strings.Replace(f.FixedPath, "*", path, 1)
+				} else if path == "" {
 					path = f.FixedPath
 				}
 				iv := view.(*zui.ImageView)
@@ -455,13 +459,19 @@ func updateStack(fo *fieldOwner, stack *zui.StackView, structData interface{}) {
 					label.SetText(str)
 				} else {
 					tv, _ := view.(*zui.TextView)
-					// fmt.Println("fields set text:", f.Name, str)
+					// zlog.Info("fields set text:", f.Name, str)
 					if tv != nil {
 						tv.SetText(str)
 					}
 				}
 			}
 		}
+	}
+	// call general one with no id. Needs to be after above loop, so values set
+	fh, _ := structData.(ActionHandler)
+	if fh != nil {
+		sview := stack.View
+		fh.HandleAction("", 0, nil, DataChangedAction, &sview)
 	}
 }
 
@@ -482,7 +492,7 @@ func updateMenuedGroup(view zui.View, item zreflect.Item) {
 
 	key := makeMenuedGroupKey(id, item)
 
-	fmt.Println("updateMenuedGroup:", key, "\n", zlog.GetCallingStackString())
+	zlog.Info("updateMenuedGroup:", key, "\n", zlog.GetCallingStackString())
 	fv.fieldOwner.structure = getSliceElementOfMenuedGroup(item, key)
 	fv.Update()
 }
@@ -492,7 +502,7 @@ func refreshMenuedGroup(key, name string, menu *zui.MenuView, fieldView *FieldVi
 
 	mItems, _ := item.(zdict.NamedValues)
 
-	// fmt.Println("refreshMenuedGroup:", mItems)
+	// zlog.Info("refreshMenuedGroup:", mItems)
 
 	menu.AddAction("$title", name+":")
 	menu.AddAction("$add", "Add")
@@ -507,7 +517,7 @@ func refreshMenuedGroup(key, name string, menu *zui.MenuView, fieldView *FieldVi
 
 	//!!! menu.updateVals(mItems, nil)
 	currentID, _ := zui.DefaultLocalKeyValueStore.StringForKey(key)
-	// fmt.Println("Set current:", currentID)
+	// zlog.Info("Set current:", currentID)
 	if currentID != "" {
 		menu.SetWithID(currentID)
 	} else {
@@ -516,13 +526,13 @@ func refreshMenuedGroup(key, name string, menu *zui.MenuView, fieldView *FieldVi
 }
 
 func makeMenuedGroupKey(id string, item zreflect.Item) string {
-	fmt.Println("makeMenuedGroupKey:", id, item.FieldName)
+	zlog.Info("makeMenuedGroupKey:", id, item.FieldName)
 	return id + "." + item.FieldName + ".MenuedGroupIndex"
 }
 
 func getSliceIndexOfMenuedGroup(item zreflect.Item, idKey string) int {
 	mItems, _ := item.Interface.(zdict.NamedValues)
-	fmt.Println("getSliceIndexOfMenuedGroup:", item.Interface, mItems)
+	zlog.Info("getSliceIndexOfMenuedGroup:", item.Interface, mItems)
 	currentID, _ := zui.DefaultLocalKeyValueStore.StringForKey(idKey)
 	return zdict.NamedValuesIndexOfID(mItems, currentID)
 }
@@ -541,7 +551,7 @@ func getSliceElementOfMenuedGroup(item zreflect.Item, idKey string) interface{} 
 }
 
 func makeMenuedGroup(fo *fieldOwner, stack *zui.StackView, item zreflect.Item, f *Field, i int, defaultAlign zgeo.Alignment, cellMargin zgeo.Size) zui.View {
-	// fmt.Println("makeMenuedGroup", f.Name, f.LabelizeWidth)
+	// zlog.Info("makeMenuedGroup", f.Name, f.LabelizeWidth)
 	var fv *FieldView
 	vert := zui.StackViewVert("mgv")
 
@@ -560,7 +570,7 @@ func makeMenuedGroup(fo *fieldOwner, stack *zui.StackView, item zreflect.Item, f
 	fv = FieldViewNew(id, s, f.LabelizeWidth)
 	fv.fieldOwner.handleUpdate = func(edited bool, i int) {
 		refreshMenuedGroup(key, item.FieldName, menu, fv, item.Interface)
-		// fmt.Println("updated!", fv.structure, item.Interface)
+		// zlog.Info("updated!", fv.structure, item.Interface)
 	}
 	fv.Build(false) // don't update here, we do below?
 	vert.Add(zgeo.Left|zgeo.Top|zgeo.Expand, fv)
@@ -568,7 +578,7 @@ func makeMenuedGroup(fo *fieldOwner, stack *zui.StackView, item zreflect.Item, f
 	refreshMenuedGroup(key, item.FieldName, menu, fv, item.Interface)
 
 	menu.ChangedHandler(func(id string, name string, value interface{}) {
-		// fmt.Println("makeMenuedGroup changed:", id)
+		// zlog.Info("makeMenuedGroup changed:", id)
 		switch id {
 		case "$add":
 			iv := item.Value
@@ -594,8 +604,8 @@ func makeMenuedGroup(fo *fieldOwner, stack *zui.StackView, item zreflect.Item, f
 			}
 			currentID := "$title"
 			zint.Minimize(&index, item.Value.Len()-1)
-			fmt.Println("REMOVE1:", index, item.Interface)
-			fmt.Println("REMOVE:", index, item.Value.Len(), reflect.ValueOf(item.Address).Elem().Len())
+			zlog.Info("REMOVE1:", index, item.Interface)
+			zlog.Info("REMOVE:", index, item.Value.Len(), reflect.ValueOf(item.Address).Elem().Len())
 			if item.Value.Len() > 0 {
 				currentID = strconv.Itoa(index)
 				// s := item.Value.Index(0).Addr().Interface()
@@ -613,7 +623,7 @@ func makeMenuedGroup(fo *fieldOwner, stack *zui.StackView, item zreflect.Item, f
 		default:
 			zui.DefaultLocalKeyValueStore.SetString(id, key, true)
 			fv.structure = getSliceElementOfMenuedGroup(item, key)
-			fmt.Println("Changed menued group to id:", id, fv.structure, "toxxxxx:", fo.structure)
+			zlog.Info("Changed menued group to id:", id, fv.structure, "toxxxxx:", fo.structure)
 			updateStack(&fv.fieldOwner, &fv.StackView, fv.structure)
 			callActionHandlerFunc(fv.structure, i, f, EditedAction, item, nil)
 			break
@@ -630,7 +640,7 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 	if parentField != nil && fo.labelizeWidth == 0 {
 		labelizeWidth = parentField.LabelizeWidth
 	}
-	// fmt.Println("buildStack", name, structData, fo.structure)
+	// zlog.Info("buildStack", name, structData, fo.structure)
 	for j, item := range children {
 		exp := zgeo.AlignmentNone
 		f := findFieldWithIndex(fields, j)
@@ -638,7 +648,7 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 			//			zlog.Error(nil, "no field for index", j)
 			continue
 		}
-		// fmt.Println("   buildStack2", j, f.Name, f.MinWidth)
+		// zlog.Info("   buildStack2", j, f.Name, f.MinWidth)
 
 		var view zui.View
 		if f.Flags&flagIsButton != 0 {
@@ -656,11 +666,11 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 			ei := findLocalField(&children, f.LocalEnum)
 			if !zlog.ErrorIf(ei == nil, f.Name, f.LocalEnum) {
 				enum, _ := ei.Interface.(zdict.NamedValues)
-				// fmt.Println("make local enum:", f.Name, f.LocalEnum, i, enum, ei)
+				// zlog.Info("make local enum:", f.Name, f.LocalEnum, i, enum, ei)
 				if zlog.ErrorIf(enum == nil, "field isn't enum, not NamedValues type", f.Name, f.LocalEnum) {
 					continue
 				}
-				// fmt.Println("make local enum:", f.Name, f.LocalEnum, i, MenuItemsLength(enum))
+				// zlog.Info("make local enum:", f.Name, f.LocalEnum, i, MenuItemsLength(enum))
 				menu := makeMenu(structData, item, f, i, enum)
 				if menu == nil {
 					zlog.Error(nil, "no local enum for", f.LocalEnum)
@@ -679,12 +689,12 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 			switch f.Kind {
 			case zreflect.KindStruct:
 				_, got := item.Interface.(zui.UIStringer)
-				// fmt.Println("make stringer?:", f.Name, got)
+				// zlog.Info("make stringer?:", f.Name, got)
 				if got && f.IsStatic() {
 					view = makeText(fo, structData, item, f, i)
 				} else {
 					exp = zgeo.HorExpand
-					// fmt.Println("struct make field view:", f.Name, f.Kind, exp)
+					// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
 					childStruct := item.Address
 					vertical := true
 					fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, labelizeWidth)
@@ -694,13 +704,13 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 				}
 
 			case zreflect.KindBool:
-				b := zui.BoolIndFromBool(item.Value.Interface().(bool))
+				b := zbool.ToBoolInd(item.Value.Interface().(bool))
 				view = makeCheckbox(structData, item, f, i, b)
 
 			case zreflect.KindInt:
 				if item.TypeName == "BoolInd" {
 					exp = zgeo.HorShrink
-					view = makeCheckbox(structData, item, f, i, zui.BoolInd(item.Value.Int()))
+					view = makeCheckbox(structData, item, f, i, zbool.BoolInd(item.Value.Int()))
 				} else {
 					view = makeText(fo, structData, item, f, i)
 				}
@@ -710,7 +720,7 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 
 			case zreflect.KindString:
 				if f.Flags&flagIsImage != 0 {
-					// fmt.Println("Make ImageField:", f.Name, f.Size)
+					// zlog.Info("Make ImageField:", f.Name, f.Size)
 					view = fieldsMakeImage(structData, item, f, i)
 				} else {
 					exp = zgeo.HorExpand
@@ -767,20 +777,20 @@ func buildStack(name string, fo *fieldOwner, stack *zui.StackView, structData in
 			def &= ^all
 		}
 		cell.Alignment = def | exp | f.Alignment
-		//  fmt.Println("field align:", f.Alignment, f.Name, def|exp, cell.Alignment, int(cell.Alignment))
+		//  zlog.Info("field align:", f.Alignment, f.Name, def|exp, cell.Alignment, int(cell.Alignment))
 		cell.Weight = f.Weight
 		if parentField != nil && cell.Weight == 0 {
 			cell.Weight = parentField.DefaultWeight
 		}
 		if useMinWidth {
 			cell.MinSize.W = f.MinWidth
-			// fmt.Println("Cell Width:", f.Name, cell.MinSize.W)
+			// zlog.Info("Cell Width:", f.Name, cell.MinSize.W)
 		}
 		cell.MaxSize.W = f.MaxWidth
 		if cell.MinSize.W != 0 && (j == 0 || j == len(children)-1) {
 			cell.MinSize.W += inset
 		}
-		// fmt.Println("Add Field Item:", cell.View.ObjectName(), cell.Alignment, f.MinWidth, cell.MinSize.W, cell.MaxSize)
+		// zlog.Info("Add Field Item:", cell.View.ObjectName(), cell.Alignment, f.MinWidth, cell.MinSize.W, cell.MaxSize)
 		if labelizeWidth == 0 {
 			cell.View = view
 			stack.AddCell(*cell, -1)
@@ -795,7 +805,7 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 	f.Alignment = zgeo.AlignmentNone
 	f.UpdateSecs = 4
 
-	// fmt.Println("Field:", f.ID)
+	// zlog.Info("Field:", f.ID)
 	for _, part := range zreflect.GetTagAsMap(item.Tag)["zui"] {
 		if part == "-" {
 			return false
@@ -809,13 +819,13 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 		val = strings.TrimSpace(val)
 		align := zgeo.AlignmentFromString(val)
 		n, floatErr := strconv.ParseFloat(val, 32)
-		flag := zstr.StrToBool(val, false)
+		flag := zbool.FromString(val, false)
 		switch key {
 		case "align":
 			if align != zgeo.AlignmentNone {
 				f.Alignment = align
 			}
-			// fmt.Println("ALIGN:", f.Name, val, a)
+			// zlog.Info("ALIGN:", f.Name, val, a)
 		case "justify":
 			if align != zgeo.AlignmentNone {
 				f.Justify = align
@@ -992,7 +1002,7 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 				f.MaxWidth += dig2 * 2
 			}
 		}
-		//		fmt.Println("Time max:", f.MaxWidth)
+		//		zlog.Info("Time max:", f.MaxWidth)
 
 	case zreflect.KindFunc:
 		if f.MinWidth == 0 {
@@ -1017,7 +1027,7 @@ func fieldViewNew(id string, vertical bool, structure interface{}, spacing float
 	v.fieldOwner.labelizeWidth = labelizeWidth
 	v.fieldOwner.id = id
 	children := getStructItems(structure)
-	// fmt.Println("FieldViewNew", id, len(froot.Children), labelizeWidth)
+	// zlog.Info("FieldViewNew", id, len(froot.Children), labelizeWidth)
 	for i, item := range children {
 		var f Field
 		if f.makeFromReflectItem(&v.fieldOwner, structure, item, i) {
@@ -1051,7 +1061,7 @@ func fieldViewToDataItem(structure interface{}, f *Field, view zui.View, showErr
 		return nil
 	}
 	children := getStructItems(structure)
-	// fmt.Println("fieldViewToDataItem before:", f.Name, f.Index, len(children), "s:", structure)
+	// zlog.Info("fieldViewToDataItem before:", f.Name, f.Index, len(children), "s:", structure)
 	item := children[f.Index]
 	if (f.Enum != "" || f.LocalEnum != "") && !f.IsStatic() {
 		mv, _ := view.(*zui.MenuView)
@@ -1073,7 +1083,7 @@ func fieldViewToDataItem(structure interface{}, f *Field, view zui.View, showErr
 		if b != nil {
 			*b = bv.Value().Value()
 		}
-		bi, _ := item.Address.(*zui.BoolInd)
+		bi, _ := item.Address.(*zbool.BoolInd)
 		if bi != nil {
 			*bi = bv.Value()
 		}

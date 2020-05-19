@@ -11,8 +11,8 @@ import (
 // zfield.ActionFieldHandler interface and hooks into it to setup, create and update the view
 type AmountBarValue float64
 
-func (a AmountBarValue) ZHandleAction(f *Field, action ActionType, view *zui.View) bool {
-	// fmt.Println("ABV Handle Action:", f.Name, action)
+func (a AmountBarValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
+	// zlog.Info("ABV Handle Action:", f.Name, action)
 	switch action {
 	case EditedAction, DataChangedAction:
 		zlog.Assert(view != nil && *view != nil)
@@ -51,12 +51,12 @@ func createCPUAmountView() zui.View {
 	return v
 }
 
-func (a AmountCirclesValue) ZHandleAction(f *Field, action ActionType, view *zui.View) bool {
+func (a AmountCirclesValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
 	const cpuSpace = 1
 	count := len(a)
 	switch action {
 	case CreateAction:
-		// fmt.Println("Create CPU View", count)
+		// zlog.Info("Create CPU View", count)
 		if count == 0 {
 			return true
 		}
