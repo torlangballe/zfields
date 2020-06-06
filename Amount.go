@@ -12,7 +12,6 @@ import (
 type AmountBarValue float64
 
 func (a AmountBarValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
-	// zlog.Info("ABV Handle Action:", f.Name, action)
 	switch action {
 	case EditedAction, DataChangedAction:
 		zlog.Assert(view != nil && *view != nil)
@@ -56,10 +55,7 @@ func (a AmountCirclesValue) HandleAction(f *Field, action ActionType, view *zui.
 	count := len(a)
 	switch action {
 	case CreateAction:
-		// zlog.Info("Create CPU View", count)
-		if count == 0 {
-			return true
-		}
+		zlog.Info("Create CPU View", count)
 		stack := zui.StackViewHor("cpu-stack")
 		stack.SetSpacing(cpuSpace)
 		for count > 0 {

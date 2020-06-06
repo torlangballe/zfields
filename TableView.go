@@ -1,12 +1,12 @@
 package zfields
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/torlangballe/zui"
 	"github.com/torlangballe/zutil/zgeo"
+	"github.com/torlangballe/zutil/zlog"
 	"github.com/torlangballe/zutil/zreflect"
 )
 
@@ -28,13 +28,15 @@ type TableView struct {
 	HeaderPressed func(id string)
 }
 
-func tableGetSliceFromPointer(structure interface{}) reflect.Value {
+func tableGetSliceRValFromPointer(structure interface{}) reflect.Value {
 	rval := reflect.ValueOf(structure)
-	// zlog.Info("tableGetSliceFromPointer:", structure, rval.Kind())
+	// zlog.Info("tableGetSliceRValFromPointer:", structure, rval.Kind())
 	if rval.Kind() == reflect.Ptr {
 		rval = rval.Elem()
-		// zlog.Info("tableGetSliceFromPointer2:", rval.Kind())
 		if rval.Kind() == reflect.Slice {
+			if rval.IsNil() {
+				zlog.Info("tableGetSliceRValFromPointer: slice is nil. Might work if you set slice to empty rather than it being nil.")
+			}
 			return rval
 		}
 	}
@@ -50,18 +52,30 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.RowInset = 7
 	v.HeaderHeight = 28
 	v.DefaultHeight = 34
+	v.structure = structData
 
 	var structure interface{}
-	rval := tableGetSliceFromPointer(structData)
+	rval := tableGetSliceRValFromPointer(structData)
 	if !rval.IsNil() {
 		v.GetRowCount = func() int {
-			return tableGetSliceFromPointer(structData).Len()
+			return tableGetSliceRValFromPointer(structData).Len()
 		}
 		v.GetRowData = func(i int) interface{} {
-			val := tableGetSliceFromPointer(structData)
+			val := tableGetSliceRValFromPointer(structData)
 			if val.Len() != 0 {
 				return val.Index(i).Addr().Interface()
 			}
+			return nil
+		}
+		v.getSubStruct = func(structID string) interface{} {
+			getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
+			count := v.GetRowCount()
+			for i := 0; i < count; i++ {
+				if getter.GetID(i) == structID {
+					return v.GetRowData(i)
+				}
+			}
+			zlog.Fatal(nil, "no row for struct id in table:", structID)
 			return nil
 		}
 		if rval.Len() == 0 {
@@ -111,7 +125,9 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 		return 50
 	}
 	v.List.CreateRow = func(rowSize zgeo.Size, i int) zui.View {
-		return createRow(v, rowSize, i)
+		getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
+		structID := getter.GetID(i)
+		return createRow(v, rowSize, structID)
 	}
 	v.List.GetRowHeight = func(i int) float64 {
 		return v.GetRowHeight(i)
@@ -190,23 +206,23 @@ func (v *TableView) FlashRow() {
 func (v *TableView) FlushDataToRow(i int) {
 	rowStack, _ := v.List.GetVisibleRowViewFromIndex(i).(*zui.StackView)
 	if rowStack != nil {
-		rowStruct := v.GetRowData(i)
-		updateStack(&v.fieldOwner, rowStack, rowStruct)
+		getter := tableGetSliceRValFromPointer(v.structure).Interface().(zui.ListViewIDGetter)
+		v.updateStack(rowStack, getter.GetID(i))
 	}
 }
 
-func createRow(v *TableView, rowSize zgeo.Size, i int) zui.View {
-	name := fmt.Sprintf("row %d", i)
+func createRow(v *TableView, rowSize zgeo.Size, structID string) zui.View {
+	name := "row " + structID
 	rowStack := zui.StackViewHor(name)
 	rowStack.SetSpacing(0)
 	rowStack.CanFocus(true)
 	rowStack.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
-	rowStruct := v.GetRowData(i)
+	//	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
-	buildStack(v.ObjectName(), &v.fieldOwner, rowStack, rowStruct, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, i)
+	v.buildStack(v.ObjectName(), rowStack, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, structID)
 	// edited := false
 	// v.handleUpdate(edited, i)
-	updateStack(&v.fieldOwner, rowStack, v.GetRowData(i))
+	v.updateStack(rowStack, structID)
 	return rowStack
 }
 
