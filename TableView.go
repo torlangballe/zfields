@@ -110,7 +110,6 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.Add(zgeo.Left|zgeo.Top|zgeo.Expand, v.List)
 	if !rval.IsNil() {
 		v.List.RowUpdater = func(i int, edited bool) {
-			// zlog.Info("table list rowupdater", i, edited)
 			v.FlushDataToRow(i)
 			// code below is EXACTLY flush???
 			// rowStack, _ := v.List.GetVisibleRowViewFromIndex(i).(*zui.StackView)

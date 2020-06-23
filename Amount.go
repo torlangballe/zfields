@@ -24,8 +24,8 @@ func (a AmountBarValue) HandleAction(f *Field, action ActionType, view *zui.View
 			min = 100
 		}
 		progress := zui.AmountViewBarNew(min)
-		if f.Color != "" {
-			col := zgeo.ColorFromString(f.Color)
+		if len(f.Colors) != 0 {
+			col := zgeo.ColorFromString(f.Colors[0])
 			if col.Valid {
 				progress.SetColor(col)
 			}
@@ -36,50 +36,37 @@ func (a AmountBarValue) HandleAction(f *Field, action ActionType, view *zui.View
 	return false
 }
 
-// AmountCirclesValue is a slice of amounts from 0-1, -1
-// It is usd to create a stack of zui.AmountView circles, since it implements the
+// AmountCirclesValue is an amount from 0-1, -1
+// It is used to create a zui.AmountView circle, since it implements the
 // zfield.ActionFieldHandler interface and hooks into it to setup, create and update the view
-// TODO: Make on for a cicle amout circle using just a float
-type AmountCirclesValue []float64
+type AmountCircleValue float64
 
-func createCPUAmountView() zui.View {
+func createAmountView(f *Field) zui.View {
 	v := zui.AmountViewCircleNew()
 	v.SetColor(zgeo.ColorNew(0, 0.8, 0, 1))
-	v.ColorsFromValue[70] = zgeo.ColorOrange
-	v.ColorsFromValue[90] = zgeo.ColorRed
+	for i, n := range []float64{0, 70, 90} {
+		if i < len(f.Colors) {
+			v.ColorsFromValue[n] = zgeo.ColorFromString(f.Colors[i])
+		}
+	}
 	return v
 }
 
-func (a AmountCirclesValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
+func (a AmountCircleValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
 	const cpuSpace = 1
-	count := len(a)
 	switch action {
 	case CreateAction:
-		zlog.Info("Create CPU View", count)
-		stack := zui.StackViewHor("cpu-stack")
-		stack.SetSpacing(cpuSpace)
-		for count > 0 {
-			stack.Add(zgeo.Left|zgeo.VertCenter, createCPUAmountView())
-			count--
-		}
-		*view = stack
+		*view = createAmountView(f)
 		return true
 
 	case SetupAction:
-		f.MinWidth = float64(count*24 + (count-1)*cpuSpace)
+		f.MinWidth = 24
 		return true
 
 	case EditedAction, DataChangedAction:
 		zlog.Assert(view != nil && *view != nil)
-		stack := (*view).(*zui.StackView)
-		for i, v := range stack.GetChildren() {
-			if i >= len(a) {
-				continue
-			}
-			av := v.(*zui.AmountView)
-			p := float64(a[i])
-			av.SetValue(p)
-		}
+		av := (*view).(*zui.AmountView)
+		av.SetValue(float64(a))
 		return true
 	}
 	return false
