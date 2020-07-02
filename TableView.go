@@ -91,6 +91,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	if err != nil {
 		panic(err)
 	}
+
 	for i, item := range froot.Children {
 		var f Field
 		if f.makeFromReflectItem(&v.fieldOwner, structure, item, i) {

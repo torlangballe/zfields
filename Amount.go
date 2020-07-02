@@ -11,7 +11,7 @@ import (
 // zfield.ActionFieldHandler interface and hooks into it to setup, create and update the view
 type AmountBarValue float64
 
-func (a AmountBarValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
+func (a AmountBarValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
 	switch action {
 	case EditedAction, DataChangedAction:
 		zlog.Assert(view != nil && *view != nil)
@@ -52,7 +52,7 @@ func createAmountView(f *Field) zui.View {
 	return v
 }
 
-func (a AmountCircleValue) HandleAction(f *Field, action ActionType, view *zui.View) bool {
+func (a AmountCircleValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
 	const cpuSpace = 1
 	switch action {
 	case CreateAction:
