@@ -67,6 +67,7 @@ type Field struct {
 	MaxWidth      float64
 	MinWidth      float64
 	Kind          zreflect.TypeKind
+	Vertical      zbool.BoolInd
 	Alignment     zgeo.Alignment
 	Justify       zgeo.Alignment
 	Format        string
@@ -88,6 +89,7 @@ type Field struct {
 	FontName      string
 	FontStyle     zui.FontStyle
 	Spacing       float64
+	Placeholder   string
 }
 
 type ActionHandler interface {
@@ -312,6 +314,7 @@ func (fo *fieldOwner) makeText(item zreflect.Item, f *Field, structID string) zu
 	tv := zui.TextViewNew(str, style)
 	setFontIfSpecifiedInField(f, tv)
 	tv.UpdateSecs = f.UpdateSecs
+	tv.SetPlaceholder(f.Placeholder)
 	tv.ChangedHandler(func(view zui.View) {
 		fo.fieldViewToDataItem(structID, f, tv, true)
 		// zlog.Info("Changed text1:", structure)
@@ -358,7 +361,7 @@ func findFieldWithIndex(fields *[]Field, index int) *Field {
 
 func (fo *fieldOwner) getStructItems(structID string, recursive bool) []zreflect.Item {
 	sub := fo.getSubStruct((structID))
-	// zlog.Info("getStructItems", structID, sub)
+	zlog.Info("getStructItems", structID, sub)
 	k := reflect.ValueOf(sub).Kind()
 	zlog.Assert(k == reflect.Ptr, "not pointer", k, sub)
 	unnestAnon := true
@@ -366,7 +369,7 @@ func (fo *fieldOwner) getStructItems(structID string, recursive bool) []zreflect
 	if err != nil {
 		panic(err)
 	}
-	// zlog.Info("Get Struct Items sub:", len(rootItems.Children))
+	zlog.Info("Get Struct Items sub:", len(rootItems.Children))
 	return rootItems.Children
 }
 
@@ -431,9 +434,28 @@ func (fo *fieldOwner) updateStack(stack *zui.StackView, structID string) {
 			continue
 		}
 		if menu == nil && f.Kind == zreflect.KindSlice && item.Value.Len() > 0 {
-			if updateStackFromActionFieldHandlerSlice(view, &item, f) {
-				continue
+			children := (view.(zui.ContainerType)).GetChildren()
+			zlog.Info("Get Sub Slice fields:", f.Name)
+			for n := 0; n < item.Value.Len(); n++ {
+				val := item.Value.Index(n)
+				cview := children[n]
+				ah, _ := val.Interface().(ActionFieldHandler)
+				if ah != nil {
+					ah.HandleFieldAction(f, DataChangedAction, &cview)
+					continue
+				} else {
+					fv, _ := children[n].(*FieldView)
+					if fv != nil {
+						fv.structure = val.Addr()
+						fv.updateStack(&fv.StackView, "")
+						continue
+					}
+				}
+				// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
 			}
+			// if updateStackFromActionFieldHandlerSlice(view, &item, f) {
+			// 	continue
+			// }
 		}
 
 		switch f.Kind {
@@ -600,12 +622,14 @@ func (fo *fieldOwner) makeMenuedGroup(stack *zui.StackView, item zreflect.Item, 
 	var fv *FieldView
 	vert := zui.StackViewVert("mgv")
 
-	vert.SetCorner(5)
-	vert.SetStroke(4, zgeo.ColorNewGray(0, 0.2))
+	vert.SetCorner(zui.GroupingStrokeCorner)
+	vert.SetStroke(zui.GroupingStrokeWidth, zui.GroupingStrokeColor)
 
 	menu := zui.MenuViewNew("menu", nil, nil, false)
 
 	vert.Add(zgeo.Left|zgeo.Top, menu, zgeo.Size{6, -6})
+
+	menu.SetAboveParent(true)
 
 	key := makeMenuedGroupKey(fo.id, item)
 
@@ -678,6 +702,33 @@ func (fo *fieldOwner) makeMenuedGroup(stack *zui.StackView, item zreflect.Item, 
 	return vert
 }
 
+func (fo *fieldOwner) buildStackFromSlice(item *zreflect.Item, vertical bool, f *Field) zui.View {
+	stack := zui.StackViewNew(vertical, f.Name+".stack")
+	if f.Spacing != 0 {
+		stack.SetSpacing(f.Spacing)
+	}
+	for n := 0; n < item.Value.Len(); n++ {
+		// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
+		var view zui.View
+		val := item.Value.Index(n)
+		h, _ := val.Interface().(ActionFieldHandler)
+		if h != nil {
+			h.HandleFieldAction(f, CreateAction, &view)
+			stack.Add(zgeo.TopLeft, view)
+		}
+		if view == nil {
+			childStruct := val.Addr().Interface()
+			fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, fo.labelizeWidth)
+			fieldView.parentField = f
+			fieldView.buildStack(f.ID, &fieldView.StackView, fieldView.parentField, &fieldView.fields, zgeo.Left|zgeo.Top, zgeo.Size{}, true, 5, "")
+			stack.Add(zgeo.TopLeft, fieldView)
+		}
+		// view := fieldView
+	}
+	return stack
+}
+
+/*
 func createStackFromActionFieldHandlerSlice(item *zreflect.Item, f *Field) zui.View {
 	var views []zui.View
 	for n := 0; n < item.Value.Len(); n++ {
@@ -704,6 +755,7 @@ func createStackFromActionFieldHandlerSlice(item *zreflect.Item, f *Field) zui.V
 	// updateStackFromActionFieldHandlerSlice(stack, item, f)
 	return stack
 }
+*/
 
 func updateStackFromActionFieldHandlerSlice(view zui.View, item *zreflect.Item, f *Field) bool {
 	var updated bool
@@ -729,8 +781,8 @@ func updateStackFromActionFieldHandlerSlice(view zui.View, item *zreflect.Item, 
 
 func (fo *fieldOwner) buildStack(name string, stack *zui.StackView, parentField *Field, fields *[]Field, defaultAlign zgeo.Alignment, cellMargin zgeo.Size, useMinWidth bool, inset float64, structID string) {
 	zlog.Assert(reflect.ValueOf(fo.structure).Kind() == reflect.Ptr, name, fo.structure)
-	// fmt.Printf("buildStack1 %s %s %+v\n", name, structID, fo.structure)
 	children := fo.getStructItems(structID, true)
+	fmt.Println("buildStack1", name, structID)
 	labelizeWidth := fo.labelizeWidth
 	if parentField != nil && fo.labelizeWidth == 0 {
 		labelizeWidth = parentField.LabelizeWidth
@@ -757,15 +809,12 @@ func (fo *fieldOwner) buildStack(name string, stack *zui.StackView, parentField 
 			// 	zlog.Info("CALLED:", f.Name, view)
 			// }
 		}
-		if view == nil && f.Kind == zreflect.KindSlice && item.Value.Len() > 0 {
-			view = createStackFromActionFieldHandlerSlice(&item, f)
-		}
 		if view != nil {
 		} else if f.LocalEnum != "" {
 			ei := findLocalField(&children, f.LocalEnum)
 			if !zlog.ErrorIf(ei == nil, f.Name, f.LocalEnum) {
 				enum, _ := ei.Interface.(zdict.NamedValues)
-				// zlog.Info("make local enum:", f.Name, f.LocalEnum, i, enum, ei)
+				zlog.Info("make local enum:", f.Name, f.LocalEnum, enum, ei)
 				if zlog.ErrorIf(enum == nil, "field isn't enum, not NamedValues type", f.Name, f.LocalEnum) {
 					continue
 				}
@@ -779,7 +828,7 @@ func (fo *fieldOwner) buildStack(name string, stack *zui.StackView, parentField 
 				menu.SetWithIdOrValue(item.Interface)
 			}
 		} else if f.Enum != "" {
-			//			fmt.Printf("make enum: %s %v\n", f.Name, item)
+			fmt.Printf("make enum: %s %v\n", f.Name, item)
 			enum, _ := fieldEnums[f.Enum]
 			zlog.Assert(enum != nil)
 			view = fo.makeMenu(item, f, structID, enum)
@@ -833,6 +882,12 @@ func (fo *fieldOwner) buildStack(name string, stack *zui.StackView, parentField 
 					view = menu
 					break
 				}
+				if f.Kind == zreflect.KindSlice && item.Value.Len() > 0 {
+					// zlog.Info("buildStackFromSlice", f.Name, f.LocalEnum, f.Enum)
+					view = fo.buildStackFromSlice(&item, stack.Vertical, f)
+					break
+					// view = createStackFromActionFieldHandlerSlice(&item, f)
+				}
 				view = fo.makeText(item, f, structID)
 				break
 
@@ -854,6 +909,7 @@ func (fo *fieldOwner) buildStack(name string, stack *zui.StackView, parentField 
 			})
 			lph := pt.LongPressedHandler()
 			pt.SetLongPressedHandler(func() {
+				// zlog.Info("Field.LPH:", f.ID)
 				if !fo.callActionHandlerFunc(structID, f, LongPressedAction, nowItem.Interface, &view) && lph != nil {
 					lph()
 				}
@@ -942,6 +998,10 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 		n, floatErr := strconv.ParseFloat(val, 32)
 		flag := zbool.FromString(val, false)
 		switch key {
+		case "vertical":
+			f.Vertical = zbool.True
+		case "horizontal":
+			f.Vertical = zbool.False
 		case "align":
 			if align != zgeo.AlignmentNone {
 				f.Alignment = align
@@ -1071,7 +1131,14 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 			if !zstr.HasPrefix(val, ".", &f.LocalEnable) {
 				zlog.Error(nil, "fields enable: only dot prefix local fields allowed")
 			}
+		case "placeholder":
+			if val != "" {
+				f.Placeholder = val
+			} else {
+				f.Placeholder = "$HAS$"
+			}
 		}
+
 	}
 	if f.Flags&flagToClipboard != 0 && f.Tooltip == "" {
 		f.Tooltip = "press to copy to Clipboard"
@@ -1083,7 +1150,9 @@ func (f *Field) makeFromReflectItem(fo *fieldOwner, structure interface{}, item 
 		str = zstr.FirstToTitleCase(str)
 		f.Name = str
 	}
-
+	if f.Placeholder == "$HAS$" {
+		f.Placeholder = f.Name
+	}
 	switch item.Kind {
 	case zreflect.KindFloat:
 		if f.MinWidth == 0 {
