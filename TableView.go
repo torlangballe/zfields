@@ -12,7 +12,6 @@ import (
 
 type TableView struct {
 	zui.StackView
-	fieldOwner
 	List          *zui.ListView
 	Header        *zui.HeaderView
 	ColumnMargin  float64
@@ -26,6 +25,9 @@ type TableView struct {
 	// RowUpdated   func(edited bool, i int, rowView *StackView) bool
 	//	RowDataUpdated func(i int)
 	HeaderPressed func(id string)
+
+	structure interface{}
+	fields    []Field
 }
 
 func tableGetSliceRValFromPointer(structure interface{}) reflect.Value {
@@ -67,34 +69,35 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 			}
 			return nil
 		}
-		v.getSubStruct = func(structID string) interface{} {
-			getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
-			count := v.GetRowCount()
-			for i := 0; i < count; i++ {
-				if getter.GetID(i) == structID {
-					return v.GetRowData(i)
-				}
-			}
-			zlog.Fatal(nil, "no row for struct id in table:", structID)
-			return nil
-		}
 		if rval.Len() == 0 {
 			structure = reflect.New(rval.Type().Elem()).Interface()
 		} else {
 			structure = rval.Index(0).Addr().Interface()
 		}
+		// v.getSubStruct = func(structID string, direct bool) interface{} {
+		// 	if structID == "" && direct {
+		// 		return structure
+		// 	}
+		// 	getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
+		// 	count := v.GetRowCount()
+		// 	for i := 0; i < count; i++ {
+		// 		if getter.GetID(i) == structID {
+		// 			return v.GetRowData(i)
+		// 		}
+		// 	}
+		// 	zlog.Fatal(nil, "no row for struct id in table:", direct, structID)
+		// 	return nil
+		// }
 	}
-
-	unnestAnon := true
-	recursive := false
-	froot, err := zreflect.ItterateStruct(structure, unnestAnon, recursive)
+	options := zreflect.Options{UnnestAnonymous: true, MakeSliceElementIfNone: true}
+	froot, err := zreflect.ItterateStruct(structure, options)
 	if err != nil {
 		panic(err)
 	}
 
 	for i, item := range froot.Children {
 		var f Field
-		if f.makeFromReflectItem(&v.fieldOwner, structure, item, i) {
+		if f.makeFromReflectItem(structure, item, i) {
 			v.fields = append(v.fields, f)
 		}
 	}
@@ -126,8 +129,8 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	v.List.CreateRow = func(rowSize zgeo.Size, i int) zui.View {
 		getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
-		structID := getter.GetID(i)
-		return createRow(v, rowSize, structID)
+		rowID := getter.GetID(i)
+		return v.createRow(rowSize, rowID, i)
 	}
 	v.List.GetRowHeight = func(i int) float64 {
 		return v.GetRowHeight(i)
@@ -166,8 +169,8 @@ func (v *TableView) ArrangeChildren(onlyChild *zui.View) {
 	v.StackView.ArrangeChildren(onlyChild)
 	if v.GetRowCount() > 0 && v.Header != nil {
 		// zlog.Info("TV SetRect fit")
-		stack := v.List.GetVisibleRowViewFromIndex(0).(*zui.StackView)
-		v.Header.FitToRowStack(stack, v.ColumnMargin)
+		fv := v.List.GetVisibleRowViewFromIndex(0).(*FieldView)
+		v.Header.FitToRowStack(&fv.StackView, v.ColumnMargin)
 	}
 }
 
@@ -204,26 +207,33 @@ func (v *TableView) FlashRow() {
 }
 
 func (v *TableView) FlushDataToRow(i int) {
-	rowStack, _ := v.List.GetVisibleRowViewFromIndex(i).(*zui.StackView)
-	if rowStack != nil {
-		getter := tableGetSliceRValFromPointer(v.structure).Interface().(zui.ListViewIDGetter)
-		v.updateStack(rowStack, getter.GetID(i))
+	fv, _ := v.List.GetVisibleRowViewFromIndex(i).(*FieldView)
+	if fv != nil {
+		data := v.GetRowData(i)
+		if data != nil {
+			fv.SetStructure(data)
+			fv.Update()
+		}
+		// getter := tableGetSliceRValFromPointer(v.structure).Interface().(zui.ListViewIDGetter)
 	}
 }
 
-func createRow(v *TableView, rowSize zgeo.Size, structID string) zui.View {
-	name := "row " + structID
-	rowStack := zui.StackViewHor(name)
-	rowStack.SetSpacing(0)
-	rowStack.CanFocus(true)
-	rowStack.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
+func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
+	name := "row " + rowID
+	data := v.GetRowData(i)
+	fv := FieldViewNew(rowID, data, 0)
+	fv.Vertical = false
+	fv.fields = v.fields
+	fv.SetSpacing(0)
+	fv.CanFocus(true)
+	fv.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
 	//	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
-	v.buildStack(v.ObjectName(), rowStack, nil, &v.fields, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset, structID)
+	fv.buildStack(name, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset)
 	// edited := false
 	// v.handleUpdate(edited, i)
-	v.updateStack(rowStack, structID)
-	return rowStack
+	fv.Update()
+	return fv
 }
 
 func makeHeaderFields(fields []Field, height float64) []zui.Header {

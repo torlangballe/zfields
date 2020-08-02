@@ -18,7 +18,7 @@ func (a AmountBarValue) HandleFieldAction(f *Field, action ActionType, view *zui
 		progress := (*view).(*zui.AmountView)
 		progress.SetValue(float64(a))
 
-	case CreateAction:
+	case CreateFieldViewAction:
 		min := f.MinWidth
 		if min == 0 {
 			min = 100
@@ -55,11 +55,11 @@ func createAmountView(f *Field) zui.View {
 func (a AmountCircleValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
 	const cpuSpace = 1
 	switch action {
-	case CreateAction:
+	case CreateFieldViewAction:
 		*view = createAmountView(f)
 		return true
 
-	case SetupAction:
+	case SetupFieldAction:
 		f.MinWidth = 24
 		return true
 
