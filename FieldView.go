@@ -480,7 +480,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 		return label
 	}
 	var style zui.TextViewStyle
-	tv := zui.TextViewNew(str, style, 1)
+	tv := zui.TextViewNew(str, style, f.Columns, 1)
 	f.SetFont(tv, nil)
 	tv.UpdateSecs = f.UpdateSecs
 	tv.SetPlaceholder(f.Placeholder)

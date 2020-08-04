@@ -86,6 +86,7 @@ type Field struct {
 	FontStyle     zui.FontStyle
 	Spacing       float64
 	Placeholder   string
+	Columns       int
 }
 
 type ActionHandler interface {
@@ -219,6 +220,11 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				f.MinWidth = n
 				f.MaxWidth = n
 			}
+		case "cols":
+			if floatErr == nil {
+				f.Columns = int(n)
+			}
+
 		case "minwidth":
 			if floatErr == nil {
 				f.MinWidth = n
