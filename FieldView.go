@@ -165,6 +165,10 @@ func (v *FieldView) Update() {
 				menu.SetValues(items)
 			}
 		case zreflect.KindTime:
+			tv, _ := view.(*zui.TextView)
+			if tv != nil && tv.IsEditing() {
+				break
+			}
 			str := getTimeString(item, f)
 			to := view.(zui.TextLayoutOwner)
 			to.SetText(str)
@@ -194,6 +198,9 @@ func (v *FieldView) Update() {
 		case zreflect.KindInt, zreflect.KindFloat:
 			tv, _ := view.(*zui.TextView)
 			if tv != nil {
+				if tv.IsEditing() {
+					break
+				}
 				str := getTextFromNumberishItem(item, f)
 				tv.SetText(str)
 			}
@@ -219,8 +226,10 @@ func (v *FieldView) Update() {
 					label.SetText(str)
 				} else {
 					tv, _ := view.(*zui.TextView)
-					// zlog.Info("fields set text:", f.Name, str)
 					if tv != nil {
+						if tv.IsEditing() {
+							break
+						}
 						tv.SetText(str)
 					}
 				}
@@ -464,7 +473,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 				j = zgeo.Left
 			}
 		}
-		label.SetMaxLines(strings.Count(str, "\n") + 1)
+		// label.SetMaxLines(strings.Count(str, "\n") + 1)
 		f.SetFont(label, nil)
 		label.SetTextAlignment(j)
 		if f.Flags&flagToClipboard != 0 {
@@ -480,7 +489,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 		return label
 	}
 	var style zui.TextViewStyle
-	tv := zui.TextViewNew(str, style, f.Columns, 1)
+	tv := zui.TextViewNew(str, style, f.Columns, f.Rows)
 	f.SetFont(tv, nil)
 	tv.UpdateSecs = f.UpdateSecs
 	tv.SetPlaceholder(f.Placeholder)
@@ -496,7 +505,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 		v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
 	})
 	tv.SetKeyHandler(func(view zui.View, key zui.KeyboardKey, mods zui.KeyboardModifier) {
-		zlog.Info("keyup!")
+		// zlog.Info("keyup!")
 	})
 	return tv
 }
@@ -571,7 +580,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	var fieldView *FieldView
 	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
 	if single {
-		selectedIndex, _ = zui.DefaultLocalKeyValueStore.IntForKey(key) //defaults to 0, which is OK
+		selectedIndex, _ = zui.DefaultLocalKeyValueStore.IntForKey(key, 0)
 		zint.Minimize(&selectedIndex, sliceVal.Len()-1)
 		zint.Maximize(&selectedIndex, 0)
 		stack.SetMargin(zgeo.RectFromXY2(zui.GroupingMargin, zui.GroupingMargin, -zui.GroupingMargin, -zui.GroupingMargin))
@@ -877,6 +886,10 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		}
 		if tip != "" {
 			zui.ViewGetNative(view).SetToolTip(tip)
+		}
+		if !f.Shadow.Delta.IsNull() {
+			nv := zui.ViewGetNative(view)
+			nv.SetDropShadow(f.Shadow)
 		}
 		view.SetObjectName(f.ID)
 		if len(f.Colors) != 0 {

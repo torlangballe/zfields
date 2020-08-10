@@ -24,7 +24,8 @@ type TableView struct {
 	GetRowData   func(i int) interface{}
 	// RowUpdated   func(edited bool, i int, rowView *StackView) bool
 	//	RowDataUpdated func(i int)
-	HeaderPressed func(id string)
+	HeaderPressed     func(id string)
+	HeaderLongPressed func(id string)
 
 	structure interface{}
 	fields    []Field
@@ -102,14 +103,14 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 		}
 	}
 	if header {
-		v.Header = zui.HeaderViewNew()
+		v.Header = zui.HeaderViewNew(name)
 		v.Add(zgeo.Left|zgeo.Top|zgeo.HorExpand, v.Header)
 	}
 	v.List = zui.ListViewNew(v.ObjectName() + ".list")
 	v.List.SetMinSize(zgeo.Size{50, 50})
 	v.List.RowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
-		v.ArrangeChildren(nil)
+		// v.ArrangeChildren(nil)
 	}
 	v.Add(zgeo.Left|zgeo.Top|zgeo.Expand, v.List)
 	if !rval.IsNil() {
@@ -169,15 +170,24 @@ func (v *TableView) ArrangeChildren(onlyChild *zui.View) {
 	v.StackView.ArrangeChildren(onlyChild)
 	if v.GetRowCount() > 0 && v.Header != nil {
 		// zlog.Info("TV SetRect fit")
-		fv := v.List.GetVisibleRowViewFromIndex(0).(*FieldView)
-		v.Header.FitToRowStack(&fv.StackView, v.ColumnMargin)
+		first, last := v.List.GetFirstLastVisibleRowIndexes()
+		for i := first; i <= last; i++ {
+			view := v.List.GetVisibleRowViewFromIndex(i)
+			if view != nil {
+				fv := view.(*FieldView)
+				v.Header.FitToRowStack(&fv.StackView, v.ColumnMargin)
+			}
+		}
 	}
 }
 
 func (v *TableView) ReadyToShow() {
 	if v.Header != nil {
 		headers := makeHeaderFields(v.fields, v.HeaderHeight)
-		v.Header.Populate(headers, v.HeaderPressed)
+		// zlog.Info("TableView.ReadyToShow:", v.HeaderLongPressed)
+		v.Header.Populate(headers)
+		v.Header.HeaderPressed = v.HeaderPressed
+		v.Header.HeaderLongPressed = v.HeaderLongPressed
 	}
 }
 
@@ -225,7 +235,7 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	fv.Vertical = false
 	fv.fields = v.fields
 	fv.SetSpacing(0)
-	fv.CanFocus(true)
+	fv.SetCanFocus(true)
 	fv.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
 	//	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)

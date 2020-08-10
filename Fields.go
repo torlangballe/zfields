@@ -87,6 +87,8 @@ type Field struct {
 	Spacing       float64
 	Placeholder   string
 	Columns       int
+	Rows          int
+	Shadow        zgeo.DropShadow
 }
 
 type ActionHandler interface {
@@ -172,7 +174,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	f.FieldName = item.FieldName
 	f.Alignment = zgeo.AlignmentNone
 	f.UpdateSecs = 4
-
+	f.Rows = 1
+	
 	// zlog.Info("Field:", f.ID)
 	for _, part := range zreflect.GetTagAsMap(item.Tag)["zui"] {
 		if part == "-" {
@@ -185,7 +188,6 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		key = strings.TrimSpace(key)
 		origVal := val
 		val = strings.TrimSpace(val)
-		align := zgeo.AlignmentFromString(val)
 		n, floatErr := strconv.ParseFloat(val, 32)
 		flag := zbool.FromString(val, false)
 		switch key {
@@ -194,16 +196,16 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		case "horizontal":
 			f.Vertical = zbool.False
 		case "align":
-			if align != zgeo.AlignmentNone {
-				f.Alignment = align
-			}
+			f.Alignment = zgeo.AlignmentFromString(val)
 			// zlog.Info("ALIGN:", f.Name, val, a)
 		case "nosize":
 			f.Flags |= flagExpandFromMinSize
 
 		case "justify":
-			if align != zgeo.AlignmentNone {
-				f.Justify = align
+			if val == "" {
+				f.Justify = f.Alignment
+			} else {
+				f.Justify = zgeo.AlignmentFromString(val)
 			}
 		case "name":
 			f.Name = origVal
@@ -224,7 +226,10 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if floatErr == nil {
 				f.Columns = int(n)
 			}
-
+		case "rows":
+			if floatErr == nil {
+				f.Rows = int(n)
+			}
 		case "minwidth":
 			if floatErr == nil {
 				f.MinWidth = n
@@ -249,6 +254,42 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			}
 		case "fixed":
 			f.Flags |= flagImageIsFixed
+		case "shadow":
+			for _, part := range strings.Split(val, "|") {
+				got := false
+				if f.Shadow.Delta.IsNull() {
+					err := f.Shadow.Delta.FromString(part)
+					if err == nil {
+						got = true
+					} else {
+						num, err := strconv.ParseFloat(part, 32)
+						if err != nil {
+							f.Shadow.Delta = zgeo.SizeBoth(num)
+							got = true
+						}
+					}
+				}
+				if !got && f.Shadow.Blur == 0 {
+					num, err := strconv.ParseFloat(part, 32)
+					if err != nil {
+						f.Shadow.Blur = float32(num)
+						got = true
+					}
+				}
+				if !got && !f.Shadow.Color.Valid {
+					f.Shadow.Color = zgeo.ColorFromString(part)
+				}
+			}
+			if f.Shadow.Delta.IsNull() {
+				f.Shadow.Delta = zgeo.SizeBoth(3)
+			}
+			if f.Shadow.Blur == 0 {
+				f.Shadow.Blur = float32(f.Shadow.Delta.Min())
+			}
+			if !f.Shadow.Color.Valid {
+				f.Shadow.Color = zgeo.ColorBlack
+			}
+
 		case "font":
 			var sign int
 			for _, part := range strings.Split(val, "|") {
@@ -358,7 +399,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				}
 			}
 			if f.MinWidth == 0 {
-				f.MinWidth = 60
+				f.MinWidth = 40
 			}
 			if f.MaxWidth == 0 {
 				f.MaxWidth = 80
@@ -377,7 +418,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			f.MaxWidth = f.Size.W
 		}
 		if f.MinWidth == 0 && f.Flags&flagIsButton == 0 {
-			f.MinWidth = 100
+			f.MinWidth = 20
 		}
 	case zreflect.KindTime:
 		if f.MinWidth == 0 {
