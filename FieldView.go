@@ -580,7 +580,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	var fieldView *FieldView
 	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
 	if single {
-		selectedIndex, _ = zui.DefaultLocalKeyValueStore.IntForKey(key, 0)
+		selectedIndex, _ = zui.DefaultLocalKeyValueStore.GetInt(key, 0)
 		zint.Minimize(&selectedIndex, sliceVal.Len()-1)
 		zint.Maximize(&selectedIndex, 0)
 		stack.SetMargin(zgeo.RectFromXY2(zui.GroupingMargin, zui.GroupingMargin, -zui.GroupingMargin, -zui.GroupingMargin))
@@ -959,7 +959,7 @@ func (v *FieldView) toDataItem(f *Field, view zui.View, showError bool) error {
 		}
 		b, _ := item.Address.(*bool)
 		if b != nil {
-			*b = bv.Value().Value()
+			*b = bv.Value().BoolValue()
 		}
 		bi, _ := item.Address.(*zbool.BoolInd)
 		if bi != nil {
@@ -970,7 +970,7 @@ func (v *FieldView) toDataItem(f *Field, view zui.View, showError bool) error {
 		if !f.IsStatic() {
 			if item.TypeName == "BoolInd" {
 				bv, _ := view.(*zui.CheckBox)
-				*item.Address.(*bool) = bv.Value().Value()
+				*item.Address.(*bool) = bv.Value().BoolValue()
 			} else {
 				tv, _ := view.(*zui.TextView)
 				str := tv.Text()

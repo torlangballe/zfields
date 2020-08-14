@@ -276,6 +276,8 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 			h.Tip = f.Tooltip
 		}
 		h.Align |= zgeo.Left | zgeo.VertCenter
+		h.SortSmallFirst = f.SortSmallFirst
+		h.SortPriority = f.SortPriority
 		headers = append(headers, h)
 	}
 	return headers

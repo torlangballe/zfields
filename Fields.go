@@ -63,32 +63,34 @@ type Field struct {
 	FieldName string
 	Title     string // name of item in row, and header if no title
 	// Width         float64
-	MaxWidth      float64
-	MinWidth      float64
-	Kind          zreflect.TypeKind
-	Vertical      zbool.BoolInd
-	Alignment     zgeo.Alignment
-	Justify       zgeo.Alignment
-	Format        string
-	Colors        []string
-	FixedPath     string
-	Height        float64
-	Enum          string
-	LocalEnum     string
-	Size          zgeo.Size
-	Flags         int
-	Tooltip       string
-	UpdateSecs    float64
-	LabelizeWidth float64
-	LocalEnable   string
-	FontSize      float64
-	FontName      string
-	FontStyle     zui.FontStyle
-	Spacing       float64
-	Placeholder   string
-	Columns       int
-	Rows          int
-	Shadow        zgeo.DropShadow
+	MaxWidth       float64
+	MinWidth       float64
+	Kind           zreflect.TypeKind
+	Vertical       zbool.BoolInd
+	Alignment      zgeo.Alignment
+	Justify        zgeo.Alignment
+	Format         string
+	Colors         []string
+	FixedPath      string
+	Height         float64
+	Enum           string
+	LocalEnum      string
+	Size           zgeo.Size
+	Flags          int
+	Tooltip        string
+	UpdateSecs     float64
+	LabelizeWidth  float64
+	LocalEnable    string
+	FontSize       float64
+	FontName       string
+	FontStyle      zui.FontStyle
+	Spacing        float64
+	Placeholder    string
+	Columns        int
+	Rows           int
+	Shadow         zgeo.DropShadow
+	SortSmallFirst zbool.BoolInd
+	SortPriority   int
 }
 
 type ActionHandler interface {
@@ -175,7 +177,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	f.Alignment = zgeo.AlignmentNone
 	f.UpdateSecs = 4
 	f.Rows = 1
-	
+	f.SortSmallFirst = zbool.Unknown
+
 	// zlog.Info("Field:", f.ID)
 	for _, part := range zreflect.GetTagAsMap(item.Tag)["zui"] {
 		if part == "-" {
@@ -230,6 +233,12 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if floatErr == nil {
 				f.Rows = int(n)
 			}
+		case "ascending":
+			f.SortSmallFirst = zbool.True
+			f.SortPriority = int(n)
+		case "descending":
+			f.SortSmallFirst = zbool.False
+			f.SortPriority = int(n)
 		case "minwidth":
 			if floatErr == nil {
 				f.MinWidth = n
