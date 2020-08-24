@@ -214,7 +214,7 @@ func (v *FieldView) Update() {
 				}
 				if path != "" && strings.Contains(f.FixedPath, "*") {
 					path = strings.Replace(f.FixedPath, "*", path, 1)
-				} else if path == "" || f.Flags&flagImageIsFixed != 0 {
+				} else if path == "" || f.Flags&flagIsFixed != 0 {
 					path = f.FixedPath
 				}
 				iv := view.(*zui.ImageView)
@@ -222,6 +222,9 @@ func (v *FieldView) Update() {
 			} else {
 				if f.IsStatic() {
 					label, _ := view.(*zui.Label)
+					if f.Flags&flagIsFixed != 0 {
+						str = f.Name
+					}
 					zlog.Assert(label != nil)
 					label.SetText(str)
 				} else {
@@ -323,7 +326,7 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 					if !first {
 						fh2, _ := fv.structure.(ActionHandler)
 						if fh2 != nil {
-							id2 := zstr.FirstToLowerWithAcronyms(parent.View.ObjectName())
+							id2 := fieldNameToID(parent.View.ObjectName())
 							f2 := fv.findFieldWithID(id2)
 							fh2.HandleAction(f2, action, &parent.View)
 						}
@@ -548,7 +551,7 @@ func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView
 	ctp.ArrangeChildren(nil)
 	if sendEdited {
 		fh, _ := structure.(ActionHandler)
-		// zlog.Info("updateSliceValue:", fh != nil, f.Name)
+		// zlog.Info("updateSliceValue:", fh != nil, f.Name, fh)
 		if fh != nil {
 			fh.HandleAction(f, EditedAction, &newStack)
 		}
@@ -581,6 +584,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
 	if single {
 		selectedIndex, _ = zui.DefaultLocalKeyValueStore.GetInt(key, 0)
+		// zlog.Info("buildStackFromSlice:", key, selectedIndex, vertical, f.ID)
 		zint.Minimize(&selectedIndex, sliceVal.Len()-1)
 		zint.Maximize(&selectedIndex, 0)
 		stack.SetMargin(zgeo.RectFromXY2(zui.GroupingMargin, zui.GroupingMargin, -zui.GroupingMargin, -zui.GroupingMargin))
@@ -945,8 +949,12 @@ func (v *FieldView) toDataItem(f *Field, view zui.View, showError bool) error {
 		mv, _ := view.(*zui.MenuView)
 		if mv != nil {
 			iface := mv.CurrentValue()
-			// zlog.Debug(iface, f.Name)
-			item.Value.Set(reflect.ValueOf(iface))
+			vo := reflect.ValueOf(iface)
+			// zlog.Debug(iface, f.Name, iface == nil)
+			if iface == nil {
+				vo = reflect.Zero(item.Value.Type())
+			}
+			item.Value.Set(vo)
 		}
 		return nil
 	}

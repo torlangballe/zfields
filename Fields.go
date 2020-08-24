@@ -3,14 +3,17 @@ package zfields
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/torlangballe/zui"
 	"github.com/torlangballe/zutil/zbool"
 	"github.com/torlangballe/zutil/zdict"
 	"github.com/torlangballe/zutil/zfloat"
 	"github.com/torlangballe/zutil/zgeo"
+	"github.com/torlangballe/zutil/zint"
 	"github.com/torlangballe/zutil/zlog"
 	"github.com/torlangballe/zutil/zreflect"
 	"github.com/torlangballe/zutil/zstr"
@@ -39,7 +42,7 @@ const (
 	flagHasMonths
 	flagHasYears
 	flagIsImage
-	flagImageIsFixed
+	flagIsFixed
 	flagIsButton
 	flagHasHeaderImage
 	flagNoTitle
@@ -168,10 +171,13 @@ func findLocalField(children *[]zreflect.Item, name string) *zreflect.Item {
 	}
 	return nil
 }
+func fieldNameToID(name string) string {
+	return zstr.FirstToLowerWithAcronyms(name)
+}
 
 func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, index int) bool {
 	f.Index = index
-	f.ID = zstr.FirstToLowerWithAcronyms(item.FieldName)
+	f.ID = fieldNameToID(item.FieldName)
 	f.Kind = item.Kind
 	f.FieldName = item.FieldName
 	f.Alignment = zgeo.AlignmentNone
@@ -262,7 +268,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				f.MaxWidth = n
 			}
 		case "fixed":
-			f.Flags |= flagImageIsFixed
+			f.Flags |= flagIsFixed
 		case "shadow":
 			for _, part := range strings.Split(val, "|") {
 				got := false
@@ -503,4 +509,104 @@ func AddStringBasedEnum(name string, vals ...interface{}) {
 		items = append(items, i)
 	}
 	fieldEnums[name] = items
+}
+
+func getNamesOfEnumValue(slice interface{}, enum zdict.Items) map[zstr.StrInt]string {
+	var enumTitles = map[zstr.StrInt]string{} // map of ID/field index to name of enum title for value
+
+	return enumTitles
+}
+
+func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (fieldMap map[string]*Field, enumTitles map[zstr.StrInt]string) {
+	fieldMap = map[string]*Field{}
+	enumTitles = map[zstr.StrInt]string{}
+
+	for _, s := range sortOrder {
+		for i, f := range fields {
+			if f.ID == s.ID {
+				fieldMap[f.ID] = &fields[i]
+				if f.LocalEnum != "" {
+					// name := zstr.HeadUntil(f.LocalEnum, ".")
+					// for _, f2 := range fields {
+					// 	if f.FieldName == name {
+					// 		// enum := ei.Interface.(zdict.ItemsGetter).GetItems()
+					// 		// getNameOfEnumValue(slice, enum)
+					// 		break
+					// 	}
+					// }
+				} else if f.Enum != "" {
+					getNamesOfEnumValue(slice, fieldEnums[f.Enum])
+				}
+				break
+			}
+		}
+	}
+	return
+}
+
+func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.SortInfo) {
+	fieldMap, enumTitles := getSortCache(slice, fields, sortOrder)
+	zlog.Info("SORT:", sortOrder, enumTitles)
+	val := reflect.ValueOf(slice)
+	sort.SliceStable(slice, func(i, j int) bool {
+		ei := val.Index(i).Addr().Interface()
+		ej := val.Index(j).Addr().Interface()
+		ic, ierr := zreflect.ItterateStruct(ei, zreflect.Options{UnnestAnonymous: true})
+		jc, jerr := zreflect.ItterateStruct(ej, zreflect.Options{UnnestAnonymous: true})
+		zlog.Assert(ierr == nil && jerr == nil, ierr, jerr)
+		for _, s := range sortOrder {
+			f := fieldMap[s.ID]
+			iitem := ic.Children[f.Index]
+			jitem := jc.Children[f.Index]
+			switch iitem.Kind {
+			case zreflect.KindBool:
+				ia := iitem.Interface.(bool)
+				ja := jitem.Interface.(bool)
+				if ia == ja {
+					continue
+				}
+				return (ia == false) == s.SmallFirst
+
+			case zreflect.KindInt:
+				ia, ierr := zint.GetAny(iitem.Interface)
+				ja, jerr := zint.GetAny(jitem.Interface)
+				zlog.Assert(ierr == nil && jerr == nil, ierr, jerr)
+				if ia == ja {
+					continue
+				}
+				return (ia < ja) == s.SmallFirst
+			case zreflect.KindFloat:
+				ia, ierr := zfloat.GetAny(iitem.Interface)
+				ja, jerr := zfloat.GetAny(jitem.Interface)
+				zlog.Assert(ierr == nil && jerr == nil, ierr, jerr)
+				if ia == ja {
+					continue
+				}
+				return (ia < ja) == s.SmallFirst
+			case zreflect.KindString:
+				ia, got := iitem.Interface.(string)
+				ja, _ := jitem.Interface.(string)
+				if !got {
+					ia = fmt.Sprint(iitem.Interface)
+					ja = fmt.Sprint(iitem.Interface)
+				}
+				if ia == ja {
+					continue
+				}
+				// zlog.Info("sort:", i, j, ia, "<", ja, "less:", zstr.CaselessCompare(ia, ja) < 0, s.SmallFirst)
+				return (zstr.CaselessCompare(ia, ja) < 0) == s.SmallFirst
+			case zreflect.KindTime:
+				ia := iitem.Interface.(time.Time)
+				ja := jitem.Interface.(time.Time)
+				if ia == ja {
+					continue
+				}
+				return (ia.Sub(ja) < 0) == s.SmallFirst
+			default:
+				continue
+			}
+		}
+		zlog.Fatal(nil, "No sort fields set for struct")
+		return false
+	})
 }

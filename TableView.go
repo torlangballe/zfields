@@ -19,9 +19,10 @@ type TableView struct {
 	DefaultHeight float64
 	HeaderHeight  float64
 
-	GetRowCount  func() int
-	GetRowHeight func(i int) float64
-	GetRowData   func(i int) interface{}
+	SortedIndexes []int
+	GetRowCount   func() int
+	GetRowHeight  func(i int) float64
+	GetRowData    func(i int) interface{}
 	// RowUpdated   func(edited bool, i int, rowView *StackView) bool
 	//	RowDataUpdated func(i int)
 	HeaderPressed     func(id string)
@@ -105,6 +106,16 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	if header {
 		v.Header = zui.HeaderViewNew(name)
 		v.Add(zgeo.Left|zgeo.Top|zgeo.HorExpand, v.Header)
+		v.Header.SortingPressed = func() {
+			val := tableGetSliceRValFromPointer(structData)
+			nval := reflect.MakeSlice(val.Type(), val.Len(), val.Len())
+			reflect.Copy(nval, val)
+			nslice := nval.Interface()
+			slice := val.Interface()
+			SortSliceWithFields(nslice, v.fields, v.Header.SortOrder)
+			val.Set(nval)
+			v.UpdateWithOldNewSlice(slice, nslice)
+		}
 	}
 	v.List = zui.ListViewNew(v.ObjectName() + ".list")
 	v.List.SetMinSize(zgeo.Size{50, 50})
@@ -281,4 +292,13 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 		headers = append(headers, h)
 	}
 	return headers
+}
+
+func (v *TableView) UpdateWithOldNewSlice(oldSlice, newSlice interface{}) {
+	if v.Header != nil {
+		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
+	}
+	oldGetter := oldSlice.(zui.ListViewIDGetter)
+	newGetter := newSlice.(zui.ListViewIDGetter)
+	v.List.UpdateWithOldNewSlice(oldGetter, newGetter)
 }
