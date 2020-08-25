@@ -511,15 +511,31 @@ func AddStringBasedEnum(name string, vals ...interface{}) {
 	fieldEnums[name] = items
 }
 
-func getNamesOfEnumValue(slice interface{}, enum zdict.Items) map[zstr.StrInt]string {
-	var enumTitles = map[zstr.StrInt]string{} // map of ID/field index to name of enum title for value
-
-	return enumTitles
+func addNamesOfEnumValue(enumTitles map[string]mapValueToName, slice interface{}, f Field) {
+	enum := fieldEnums[f.Enum]
+	val := reflect.ValueOf(slice)
+	slen := val.Len()
+	m := enumTitles[f.ID]
+	if m == nil {
+		m = mapValueToName{}
+		enumTitles[f.ID] = m
+	}
+	for i := 0; i < slen; i++ {
+		fi := val.Index(i).Addr().Interface()
+		ic, ierr := zreflect.ItterateStruct(fi, zreflect.Options{UnnestAnonymous: true})
+		zlog.Assert(ierr == nil)
+		item := ic.Children[f.Index]
+		di := enum.FindValue(item.Interface)
+		// zlog.Info("addNamesOfEnumValue:", f.Name, "di:", di, "item:", item.Interface)
+		m[item.Interface] = di.Name
+	}
 }
 
-func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (fieldMap map[string]*Field, enumTitles map[zstr.StrInt]string) {
+type mapValueToName map[interface{}]string
+
+func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (fieldMap map[string]*Field, enumTitles map[string]mapValueToName) {
 	fieldMap = map[string]*Field{}
-	enumTitles = map[zstr.StrInt]string{}
+	enumTitles = map[string]mapValueToName{}
 
 	for _, s := range sortOrder {
 		for i, f := range fields {
@@ -535,7 +551,8 @@ func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (
 					// 	}
 					// }
 				} else if f.Enum != "" {
-					getNamesOfEnumValue(slice, fieldEnums[f.Enum])
+					addNamesOfEnumValue(enumTitles, slice, f)
+					// zlog.Info("addNamesOfEnumValue:", f.Name, enumTitles)
 				}
 				break
 			}
@@ -546,7 +563,7 @@ func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (
 
 func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.SortInfo) {
 	fieldMap, enumTitles := getSortCache(slice, fields, sortOrder)
-	zlog.Info("SORT:", sortOrder, enumTitles)
+	// zlog.Info("SORT:", sortOrder, enumTitles)
 	val := reflect.ValueOf(slice)
 	sort.SliceStable(slice, func(i, j int) bool {
 		ei := val.Index(i).Addr().Interface()
@@ -558,6 +575,16 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 			f := fieldMap[s.ID]
 			iitem := ic.Children[f.Index]
 			jitem := jc.Children[f.Index]
+			sliceEnumNames := enumTitles[f.ID]
+			if sliceEnumNames != nil {
+				ni := sliceEnumNames[iitem.Interface]
+				nj := sliceEnumNames[jitem.Interface]
+				if ni == nj {
+					continue
+				}
+				// zlog.Info("sliceEnumNames:", s.ID, i, ni, j, nj)
+				return (zstr.CaselessCompare(ni, nj) < 0) == s.SmallFirst
+			}
 			switch iitem.Kind {
 			case zreflect.KindBool:
 				ia := iitem.Interface.(bool)
@@ -606,7 +633,7 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 				continue
 			}
 		}
-		zlog.Fatal(nil, "No sort fields set for struct")
+		// zlog.Fatal(nil, "No sort fields set for struct")
 		return false
 	})
 }
