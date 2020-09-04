@@ -92,6 +92,7 @@ func (v *FieldView) findNamedViewOrInLabelized(name string) *zui.View {
 
 func (v *FieldView) Update() {
 	children := v.getStructItems()
+	// fmt.Println("FV Update", v.id, len(children))
 	// fmt.Printf("FV Update: %s %d %+v\n", v.id, len(children), v.structure)
 	for i, item := range children {
 		f := findFieldWithIndex(&v.fields, i)
@@ -99,6 +100,7 @@ func (v *FieldView) Update() {
 			// zlog.Info("FV Update no index found:", i, v.id)
 			continue
 		}
+		// fmt.Println("FV Update Item:", f.Name)
 		fview := v.findNamedViewOrInLabelized(f.ID)
 		if fview == nil {
 			//			zlog.Info("FV Update no view found:", i, v.id, f.ID)
@@ -109,6 +111,8 @@ func (v *FieldView) Update() {
 		if called {
 			continue
 		}
+		// fmt.Println("FV Update Item2:", f.Name)
+
 		menu, _ := view.(*zui.MenuView)
 		if (f.Enum != "" && f.Kind != zreflect.KindSlice) || f.LocalEnum != "" {
 			var enum zdict.Items
@@ -266,7 +270,7 @@ func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
 		}
 		cview := c
 		fv, _ := c.(*FieldView)
-		// zlog.Info("CHILD:", c.ObjectName(), fv != nil, reflect.ValueOf(c).Type())
+		zlog.Info("CHILD:", c.ObjectName(), fv != nil, reflect.ValueOf(c).Type())
 		val := item.Value.Index(n)
 		if fv == nil {
 			ah, _ := val.Interface().(ActionFieldHandler)
@@ -309,8 +313,8 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 	// structure := v.getSubStruct(structID, direct)
 	// zlog.Info("callFieldHandler1", action, f.Name, structure != nil, reflect.ValueOf(structure))
 	fh, _ := structure.(ActionHandler)
-	// zlog.Info("callFieldHandler1", action, f.Name, fh)
 	var result bool
+	// zlog.Info("callFieldHandler1", action, f.Name, fh != nil)
 	if fh != nil {
 		result = fh.HandleAction(f, action, view)
 	}
@@ -326,9 +330,8 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 					if !first {
 						fh2, _ := fv.structure.(ActionHandler)
 						if fh2 != nil {
-							id2 := fieldNameToID(parent.View.ObjectName())
-							f2 := fv.findFieldWithID(id2)
-							fh2.HandleAction(f2, action, &parent.View)
+							// zlog.Info("callFieldHandler action2", action, f.Name)
+							fh2.HandleAction(nil, action, &parent.View)
 						}
 					}
 					first = false
@@ -337,6 +340,7 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 			n = parent
 		}
 	}
+
 	if !result {
 		if !direct {
 			changed := false
@@ -381,6 +385,7 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 			// zlog.Info("callActionHandlerFunc bottom:", f.Name, action, result, view, aih)
 		}
 	}
+	// zlog.Info("callActionHandlerFunc top done:", f.ID, f.Name, action)
 	return result
 }
 
@@ -419,7 +424,7 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) *z
 
 	// zlog.Info("makeMenu2:", f.Name, items.Count(), item.Interface, item.TypeName, item.Kind)
 
-	menu.ChangedHandler(func(name string, value interface{}) {
+	menu.SetSelectedHandler(func(name string, value interface{}) {
 		//		zlog.Debug(iface, f.Name)
 		v.toDataItem(f, menu, false)
 		//		item.Value.Set(reflect.ValueOf(iface))
@@ -525,7 +530,7 @@ func (v *FieldView) makeCheckbox(item zreflect.Item, f *Field, b zbool.BoolInd) 
 }
 
 func (v *FieldView) makeImage(item zreflect.Item, f *Field) zui.View {
-	iv := zui.ImageViewNew("", f.Size)
+	iv := zui.ImageViewNew(nil, "", f.Size)
 	iv.SetMinSize(f.Size)
 	iv.SetObjectName(f.ID)
 	return iv

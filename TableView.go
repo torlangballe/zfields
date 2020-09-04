@@ -199,16 +199,27 @@ func (v *TableView) ReadyToShow() {
 		v.Header.Populate(headers)
 		v.Header.HeaderPressed = v.HeaderPressed
 		v.Header.HeaderLongPressed = v.HeaderLongPressed
+		slice := tableGetSliceRValFromPointer(v.structure).Interface()
+		var sid string
+		getter := slice.(zui.ListViewIDGetter)
+		if v.List.SelectionIndex() != -1 {
+			sid = getter.GetID(v.List.SelectionIndex())
+		}
+		SortSliceWithFields(slice, v.fields, v.Header.SortOrder)
+		if sid != "" {
+			count := v.GetRowCount()
+			for i := 0; i < count; i++ {
+				if getter.GetID(i) == sid {
+					v.List.Select(i)
+					break
+				}
+			}
+		}
 	}
 }
 
 func (v *TableView) Reload() {
 	v.List.ReloadData()
-}
-
-func (v *TableView) Margin(r zgeo.Rect) *TableView {
-	v.List.ScrollView.Margin = r
-	return v
 }
 
 func (v *TableView) SetStructureList(list interface{}) {
@@ -295,10 +306,12 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 }
 
 func (v *TableView) UpdateWithOldNewSlice(oldSlice, newSlice interface{}) {
-	if v.Header != nil {
-		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
-	}
 	oldGetter := oldSlice.(zui.ListViewIDGetter)
 	newGetter := newSlice.(zui.ListViewIDGetter)
+	// zlog.Info("SLICE5:", oldGetter.GetID(5))
+	if v.Header != nil {
+		// zlog.Info("sort table")
+		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
+	}
 	v.List.UpdateWithOldNewSlice(oldGetter, newGetter)
 }

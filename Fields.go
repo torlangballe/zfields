@@ -541,6 +541,7 @@ func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (
 		for i, f := range fields {
 			if f.ID == s.ID {
 				fieldMap[f.ID] = &fields[i]
+				// zlog.Info("ADD2cache:", f.ID)
 				if f.LocalEnum != "" {
 					// name := zstr.HeadUntil(f.LocalEnum, ".")
 					// for _, f2 := range fields {
@@ -562,8 +563,10 @@ func getSortCache(slice interface{}, fields []Field, sortOrder []zui.SortInfo) (
 }
 
 func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.SortInfo) {
+	// start := time.Now()
 	fieldMap, enumTitles := getSortCache(slice, fields, sortOrder)
-	// zlog.Info("SORT:", sortOrder, enumTitles)
+	// fmt.Printf("FieldMap: %+v %+v\n", fieldMap, sortOrder)
+	// zlog.Info("SORT:", sortOrder, enumTitles, zlog.GetCallingStackString())
 	val := reflect.ValueOf(slice)
 	sort.SliceStable(slice, func(i, j int) bool {
 		ei := val.Index(i).Addr().Interface()
@@ -573,6 +576,7 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 		zlog.Assert(ierr == nil && jerr == nil, ierr, jerr)
 		for _, s := range sortOrder {
 			f := fieldMap[s.ID]
+			// zlog.Info("SORT:", i, j, s.ID, f != nil)
 			iitem := ic.Children[f.Index]
 			jitem := jc.Children[f.Index]
 			sliceEnumNames := enumTitles[f.ID]
@@ -636,4 +640,5 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 		// zlog.Fatal(nil, "No sort fields set for struct")
 		return false
 	})
+	// zlog.Info("SORT TIME:", time.Since(start))
 }
