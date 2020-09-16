@@ -10,6 +10,8 @@ import (
 	"github.com/torlangballe/zutil/zreflect"
 )
 
+var DefaultTableRowHoverColor = zgeo.ColorNew(0.7, 0.7, 1, 1)
+
 type TableView struct {
 	zui.StackView
 	List          *zui.ListView
@@ -104,7 +106,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 		}
 	}
 	if header {
-		v.Header = zui.HeaderViewNew(name)
+		v.Header = zui.HeaderViewNew(name + ".header")
 		v.Add(zgeo.Left|zgeo.Top|zgeo.HorExpand, v.Header)
 		v.Header.SortingPressed = func() {
 			val := tableGetSliceRValFromPointer(structData)
@@ -123,6 +125,8 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
 		// v.ArrangeChildren(nil)
 	}
+	v.List.HoverColor = DefaultTableRowHoverColor
+
 	v.Add(zgeo.Left|zgeo.Top|zgeo.Expand, v.List)
 	if !rval.IsNil() {
 		v.List.RowUpdater = func(i int, edited bool) {
@@ -140,9 +144,11 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 		return 50
 	}
 	v.List.CreateRow = func(rowSize zgeo.Size, i int) zui.View {
+		// start := time.Now()
 		getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
 		rowID := getter.GetID(i)
-		return v.createRow(rowSize, rowID, i)
+		r := v.createRow(rowSize, rowID, i)
+		return r
 	}
 	v.List.GetRowHeight = func(i int) float64 {
 		return v.GetRowHeight(i)
@@ -180,8 +186,8 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 func (v *TableView) ArrangeChildren(onlyChild *zui.View) {
 	v.StackView.ArrangeChildren(onlyChild)
 	if v.GetRowCount() > 0 && v.Header != nil {
-		// zlog.Info("TV SetRect fit")
 		first, last := v.List.GetFirstLastVisibleRowIndexes()
+		// zlog.Info("TV ArrangeChildren", first, last, zlog.GetCallingStackString())
 		for i := first; i <= last; i++ {
 			view := v.List.GetVisibleRowViewFromIndex(i)
 			if view != nil {
@@ -192,8 +198,8 @@ func (v *TableView) ArrangeChildren(onlyChild *zui.View) {
 	}
 }
 
-func (v *TableView) ReadyToShow() {
-	if v.Header != nil {
+func (v *TableView) ReadyToShow(beforeWindow bool) {
+	if beforeWindow && v.Header != nil {
 		headers := makeHeaderFields(v.fields, v.HeaderHeight)
 		// zlog.Info("TableView.ReadyToShow:", v.HeaderLongPressed)
 		v.Header.Populate(headers)
@@ -251,8 +257,11 @@ func (v *TableView) FlushDataToRow(i int) {
 }
 
 func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
+	// start := time.Now()
 	name := "row " + rowID
+	// zlog.Info("createRow:", time.Since(start))
 	data := v.GetRowData(i)
+	// zlog.Info("createRow2:", time.Since(start))
 	fv := FieldViewNew(rowID, data, 0)
 	fv.Vertical = false
 	fv.fields = v.fields
@@ -261,10 +270,13 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	fv.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
 	//	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
+	// zlog.Info("createRow4:", time.Since(start))
 	fv.buildStack(name, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset)
+	// zlog.Info("createRow5:", time.Since(start))
 	// edited := false
 	// v.handleUpdate(edited, i)
 	fv.Update()
+	// zlog.Info("createRow6:", time.Since(start))
 	return fv
 }
 

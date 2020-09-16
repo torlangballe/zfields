@@ -60,11 +60,12 @@ const (
 )
 
 type Field struct {
-	Index     int
-	ID        string
-	Name      string
-	FieldName string
-	Title     string // name of item in row, and header if no title
+	Index       int
+	ID          string
+	ActionValue interface{} // ActionValue is used to send other information with an action into ActionHandler / ActionFieldHandler
+	Name        string
+	FieldName   string
+	Title       string // name of item in row, and header if no title
 	// Width         float64
 	MaxWidth       float64
 	MinWidth       float64
@@ -383,7 +384,6 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				f.Placeholder = "$HAS$"
 			}
 		}
-
 	}
 	if f.Flags&flagToClipboard != 0 && f.Tooltip == "" {
 		f.Tooltip = "press to copy to Clipboard"

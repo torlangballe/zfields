@@ -40,6 +40,7 @@ func (v *FieldView) Struct() interface{} {
 }
 
 func fieldViewNew(id string, vertical bool, structure interface{}, spacing float64, marg zgeo.Size, labelizeWidth float64, parent *FieldView) *FieldView {
+	// start := time.Now()
 	v := &FieldView{}
 	v.StackView.Init(v, id)
 	v.SetSpacing(12)
@@ -270,7 +271,7 @@ func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
 		}
 		cview := c
 		fv, _ := c.(*FieldView)
-		zlog.Info("CHILD:", c.ObjectName(), fv != nil, reflect.ValueOf(c).Type())
+		// zlog.Info("CHILD:", c.ObjectName(), fv != nil, reflect.ValueOf(c).Type())
 		val := item.Value.Index(n)
 		if fv == nil {
 			ah, _ := val.Interface().(ActionFieldHandler)
@@ -424,11 +425,23 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) *z
 
 	// zlog.Info("makeMenu2:", f.Name, items.Count(), item.Interface, item.TypeName, item.Kind)
 
+	var view zui.View
+	view = menu
 	menu.SetSelectedHandler(func(name string, value interface{}) {
 		//		zlog.Debug(iface, f.Name)
 		v.toDataItem(f, menu, false)
 		//		item.Value.Set(reflect.ValueOf(iface))
-		v.callActionHandlerFunc(f, EditedAction, item.Interface, nil)
+		if menu.IsStatic {
+			val := menu.CurrentValue()
+			kind := reflect.ValueOf(val).Kind()
+			if kind != reflect.Ptr && kind != reflect.Struct {
+				nf := *f
+				nf.ActionValue = val
+				v.callActionHandlerFunc(&nf, PressedAction, item.Interface, &view)
+			}
+		} else {
+			v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
+		}
 	})
 	return menu
 }
@@ -521,7 +534,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 func (v *FieldView) makeCheckbox(item zreflect.Item, f *Field, b zbool.BoolInd) zui.View {
 	cv := zui.CheckBoxNew(b)
 	cv.SetObjectName(f.ID)
-	cv.ValueHandler(func(_ zui.View) {
+	cv.SetValueHandler(func(_ zui.View) {
 		v.toDataItem(f, cv, true)
 		view := zui.View(cv)
 		v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
