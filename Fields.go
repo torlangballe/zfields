@@ -52,6 +52,7 @@ const (
 	flagIsStringer
 	flagIsPassword
 	flagExpandFromMinSize
+	flagIsDuration
 )
 
 const (
@@ -383,6 +384,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			} else {
 				f.Placeholder = "$HAS$"
 			}
+		case "since":
+			f.Flags |= flagIsStatic | flagIsDuration
 		}
 	}
 	if f.Flags&flagToClipboard != 0 && f.Tooltip == "" {
@@ -436,17 +439,17 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			f.MinWidth = 20
 		}
 	case zreflect.KindTime:
-		if f.MinWidth == 0 {
-			f.MinWidth = 80
+		if f.MaxWidth != 0 && f.MinWidth != 0 {
+			break
 		}
 		if f.Flags&(flagTimeFlags|flagDateFlags) == 0 {
 			f.Flags |= flagTimeFlags | flagDateFlags
 		}
 		dig2 := 20.0
+		f.MaxWidth = 24
 		if f.MinWidth == 0 {
 			if f.Flags&flagHasSeconds != 0 {
 				f.MaxWidth += dig2
-
 			}
 			if f.Flags&flagHasMinutes != 0 {
 				f.MaxWidth += dig2
@@ -467,8 +470,11 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if f.Flags&flagHasYears != 0 {
 				f.MaxWidth += dig2 * 2
 			}
+			f.MinWidth = f.MaxWidth
+			if f.MinWidth == 0 {
+				f.MinWidth = 80
+			}
 		}
-		//		zlog.Info("Time max:", f.MaxWidth)
 
 	case zreflect.KindFunc:
 		if f.MinWidth == 0 {

@@ -71,3 +71,4 @@ func (a AmountCircleValue) HandleFieldAction(f *Field, action ActionType, view *
 	}
 	return false
 }
+

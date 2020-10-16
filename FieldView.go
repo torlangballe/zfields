@@ -174,6 +174,10 @@ func (v *FieldView) Update() {
 			if tv != nil && tv.IsEditing() {
 				break
 			}
+			if f.Flags&flagIsDuration != 0 {
+				v.updateSinceTime(view.(*zui.Label), f)
+				break
+			}
 			str := getTimeString(item, f)
 			to := view.(zui.TextLayoutOwner)
 			to.SetText(str)
@@ -753,6 +757,40 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 // 	return updated
 // }
 
+func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
+	sv := reflect.ValueOf(v.structure)
+	// zlog.Info("\n\nNew struct search for children?:", f.FieldName, sv.Kind(), sv.CanAddr(), v.structure != nil)
+	zlog.Assert(sv.Kind() == reflect.Ptr || sv.CanAddr())
+	// Here we run thru the possiblly new struct again, and find the item with same id as field
+	// s := structure
+	// if sv.Kind() != reflect.Ptr {
+	// 	s = sv.Addr().Interface()
+	// }
+	val, found := zreflect.FindFieldWithNameInStruct(f.FieldName, v.structure, true)
+	if found {
+		var str string
+		t := val.Interface().(time.Time)
+		tooBig := true
+		if !t.IsZero() {
+			since := time.Since(t)
+			str, tooBig = ztime.GetDurationString(since, f.Flags&flagHasSeconds != 0, f.Flags&flagHasMinutes != 0, f.Flags&flagHasHours != 0, f.Columns)
+		}
+		if tooBig {
+			label.SetText("●")
+			label.SetColor(zgeo.ColorRed)
+		} else {
+			label.SetText(str)
+			if !v.callActionHandlerFunc(f, DataChangedAction, t, &label.View) {
+				col := zgeo.ColorDefaultForeground
+				if len(f.Colors) != 0 {
+					col = zgeo.ColorFromString(f.Colors[0])
+				}
+				label.SetColor(col)
+			}
+		}
+	}
+}
+
 func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
 	zlog.Assert(reflect.ValueOf(v.structure).Kind() == reflect.Ptr, name, v.structure)
 	// fmt.Println("buildStack1", name)
@@ -872,6 +910,13 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 
 			case zreflect.KindTime:
 				view = v.makeText(item, f)
+				if f.Flags&flagIsDuration != 0 {
+					timer := ztimer.RepeatNow(1, func() bool {
+						v.updateSinceTime(view.(*zui.Label), f)
+						return true
+					})
+					zui.ViewGetNative(view).AddStopper(timer)
+				}
 
 			default:
 				panic(fmt.Sprintln("buildStack bad type:", f.Name, f.Kind))
