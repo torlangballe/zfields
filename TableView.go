@@ -321,9 +321,13 @@ func (v *TableView) UpdateWithOldNewSlice(oldSlice, newSlice interface{}) {
 	oldGetter := oldSlice.(zui.ListViewIDGetter)
 	newGetter := newSlice.(zui.ListViewIDGetter)
 	// zlog.Info("SLICE5:", oldGetter.GetID(5))
+	// var focusedRowID, focusedElementObjectName string
 	if v.Header != nil {
-		// zlog.Info("sort table")
 		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
 	}
 	v.List.UpdateWithOldNewSlice(oldGetter, newGetter)
+	// if focusedRowID != "" {
+	// 	v.List.Scroll
+	// 	focused.Focus(true)
+	// }
 }

@@ -74,11 +74,11 @@ func (v *FieldView) Build(update bool) {
 	}
 }
 
-func (v *FieldView) findNamedViewOrInLabelized(name string) *zui.View {
+func (v *FieldView) findNamedViewOrInLabelized(name string) zui.View {
 	for _, c := range (v.View.(zui.ContainerType)).GetChildren() {
 		n := c.ObjectName()
 		if n == name {
-			return &c
+			return c
 		}
 		if strings.HasPrefix(n, "$labelize.") {
 			s := c.(*zui.StackView)
@@ -107,14 +107,13 @@ func (v *FieldView) Update() {
 			//			zlog.Info("FV Update no view found:", i, v.id, f.ID)
 			continue
 		}
-		view := *fview
-		called := v.callActionHandlerFunc(f, DataChangedAction, item.Interface, &view)
+		called := v.callActionHandlerFunc(f, DataChangedAction, item.Interface, &fview)
 		if called {
 			continue
 		}
 		// fmt.Println("FV Update Item2:", f.Name)
 
-		menu, _ := view.(*zui.MenuView)
+		menu, _ := fview.(*zui.MenuView)
 		if (f.Enum != "" && f.Kind != zreflect.KindSlice) || f.LocalEnum != "" {
 			var enum zdict.Items
 			if f.Enum != "" {
@@ -135,12 +134,12 @@ func (v *FieldView) Update() {
 			e, got := eItem.Interface.(bool)
 			// zlog.Info("updateStack localEnable:", f.Name, f.LocalEnable, e, got)
 			if got {
-				parent := zui.ViewGetNative(view).Parent()
+				parent := zui.ViewGetNative(fview).Parent()
 				//				if parent != nil && parent != stack(strings.HasPrefix(parent.ObjectName(), "$labelize.") || strings.HasPrefix(parent.ObjectName(), "$labledCheckBoxStack.")) {
 				if parent != nil && parent != &v.NativeView {
 					parent.SetUsable(e)
 				} else {
-					view.SetUsable(e)
+					fview.SetUsable(e)
 				}
 			}
 		}
@@ -151,14 +150,14 @@ func (v *FieldView) Update() {
 		if f.Flags&flagIsButton != 0 {
 			enabled, is := item.Interface.(bool)
 			if is {
-				view.SetUsable(enabled)
+				fview.SetUsable(enabled)
 			}
 			continue
 		}
 		if menu == nil && f.Kind == zreflect.KindSlice {
 			// val, found := zreflect.FindFieldWithNameInStruct(f.FieldName, v.structure, true)
 			// fmt.Printf("updateSliceFieldView: %s %p %p %v %p\n", v.id, item.Interface, val.Interface(), found, view)
-			updateSliceFieldView(view, item, f)
+			updateSliceFieldView(fview, item, f)
 		}
 
 		switch f.Kind {
@@ -166,20 +165,20 @@ func (v *FieldView) Update() {
 			getter, _ := item.Interface.(zdict.ItemsGetter)
 			if getter != nil {
 				items := getter.GetItems()
-				menu := view.(*zui.MenuView)
+				menu := fview.(*zui.MenuView)
 				menu.SetValues(items)
 			}
 		case zreflect.KindTime:
-			tv, _ := view.(*zui.TextView)
+			tv, _ := fview.(*zui.TextView)
 			if tv != nil && tv.IsEditing() {
 				break
 			}
 			if f.Flags&flagIsDuration != 0 {
-				v.updateSinceTime(view.(*zui.Label), f)
+				v.updateSinceTime(fview.(*zui.Label), f)
 				break
 			}
 			str := getTimeString(item, f)
-			to := view.(zui.TextLayoutOwner)
+			to := fview.(zui.TextLayoutOwner)
 			to.SetText(str)
 
 		case zreflect.KindStruct:
@@ -187,7 +186,7 @@ func (v *FieldView) Update() {
 			if got {
 				break
 			}
-			fv, _ := view.(*FieldView)
+			fv, _ := fview.(*FieldView)
 			if fv == nil {
 				break
 			}
@@ -198,14 +197,14 @@ func (v *FieldView) Update() {
 
 		case zreflect.KindBool:
 			b := zbool.ToBoolInd(item.Value.Interface().(bool))
-			cv := view.(*zui.CheckBox)
+			cv := fview.(*zui.CheckBox)
 			v := cv.Value()
 			if v != b {
 				cv.SetValue(b)
 			}
 
 		case zreflect.KindInt, zreflect.KindFloat:
-			tv, _ := view.(*zui.TextView)
+			tv, _ := fview.(*zui.TextView)
 			if tv != nil {
 				if tv.IsEditing() {
 					break
@@ -226,18 +225,18 @@ func (v *FieldView) Update() {
 				} else if path == "" || f.Flags&flagIsFixed != 0 {
 					path = f.FixedPath
 				}
-				iv := view.(*zui.ImageView)
+				iv := fview.(*zui.ImageView)
 				iv.SetImage(nil, path, nil)
 			} else {
 				if f.IsStatic() {
-					label, _ := view.(*zui.Label)
+					label, _ := fview.(*zui.Label)
 					if f.Flags&flagIsFixed != 0 {
 						str = f.Name
 					}
 					zlog.Assert(label != nil)
 					label.SetText(str)
 				} else {
-					tv, _ := view.(*zui.TextView)
+					tv, _ := fview.(*zui.TextView)
 					if tv != nil {
 						if tv.IsEditing() {
 							break
