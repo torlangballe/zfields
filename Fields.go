@@ -68,34 +68,36 @@ type Field struct {
 	FieldName   string
 	Title       string // name of item in row, and header if no title
 	// Width         float64
-	MaxWidth       float64
-	MinWidth       float64
-	Kind           zreflect.TypeKind
-	Vertical       zbool.BoolInd
-	Alignment      zgeo.Alignment
-	Justify        zgeo.Alignment
-	Format         string
-	Colors         []string
-	FixedPath      string
-	Height         float64
-	Enum           string
-	LocalEnum      string
-	Size           zgeo.Size
-	Flags          int
-	Tooltip        string
-	UpdateSecs     float64
-	LabelizeWidth  float64
-	LocalEnable    string
-	FontSize       float64
-	FontName       string
-	FontStyle      zui.FontStyle
-	Spacing        float64
-	Placeholder    string
-	Columns        int
-	Rows           int
-	Shadow         zgeo.DropShadow
-	SortSmallFirst zbool.BoolInd
-	SortPriority   int
+	MaxWidth             float64
+	MinWidth             float64
+	Kind                 zreflect.TypeKind
+	Vertical             zbool.BoolInd
+	Alignment            zgeo.Alignment
+	Justify              zgeo.Alignment
+	Format               string
+	Colors               []string
+	ImageFixedPath       string
+	HeaderImageFixedPath string
+	Height               float64
+	Enum                 string
+	LocalEnum            string
+	Size                 zgeo.Size
+	HeaderSize           zgeo.Size
+	Flags                int
+	Tooltip              string
+	UpdateSecs           float64
+	LabelizeWidth        float64
+	LocalEnable          string
+	FontSize             float64
+	FontName             string
+	FontStyle            zui.FontStyle
+	Spacing              float64
+	Placeholder          string
+	Columns              int
+	Rows                 int
+	Shadow               zgeo.DropShadow
+	SortSmallFirst       zbool.BoolInd
+	SortPriority         int
 }
 
 type ActionHandler interface {
@@ -337,14 +339,17 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if !zstr.SplitN(val, "|", &ssize, &path) {
 				ssize = val
 			} else {
-				f.FixedPath = "images/" + path
+				path = "images/" + path
 			}
 			if key == "image" {
 				f.Flags |= flagIsImage
+				f.Size.FromString(ssize)
+				f.ImageFixedPath = path
 			} else {
 				f.Flags |= flagHasHeaderImage
+				f.HeaderSize.FromString(ssize)
+				f.HeaderImageFixedPath = path
 			}
-			f.Size.FromString(ssize)
 		case "enum":
 			if zstr.HasPrefix(val, ".", &f.LocalEnum) {
 			} else {
@@ -387,6 +392,12 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		case "since":
 			f.Flags |= flagIsStatic | flagIsDuration
 		}
+	}
+	if f.HeaderSize.IsNull() {
+		f.HeaderSize = f.Size
+	}
+	if f.HeaderImageFixedPath == "" && f.Flags&flagHasHeaderImage != 0 {
+		f.HeaderImageFixedPath = f.ImageFixedPath
 	}
 	if f.Flags&flagToClipboard != 0 && f.Tooltip == "" {
 		f.Tooltip = "press to copy to Clipboard"
@@ -432,8 +443,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		}
 	case zreflect.KindString:
 		if f.Flags&(flagHasHeaderImage|flagIsImage) != 0 {
-			f.MinWidth = f.Size.W
-			f.MaxWidth = f.Size.W
+			f.MinWidth = f.HeaderSize.W
+			f.MaxWidth = f.HeaderSize.W
 		}
 		if f.MinWidth == 0 && f.Flags&flagIsButton == 0 {
 			f.MinWidth = 20
@@ -572,7 +583,7 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 	// start := time.Now()
 	fieldMap, enumTitles := getSortCache(slice, fields, sortOrder)
 	// fmt.Printf("FieldMap: %+v %+v\n", fieldMap, sortOrder)
-	// zlog.Info("SORT:", sortOrder, enumTitles, zlog.GetCallingStackString())
+	// zlog.Info("SORT:", sortOrder, enumTitles)
 	val := reflect.ValueOf(slice)
 	sort.SliceStable(slice, func(i, j int) bool {
 		ei := val.Index(i).Addr().Interface()
@@ -582,18 +593,20 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 		zlog.Assert(ierr == nil && jerr == nil, ierr, jerr)
 		for _, s := range sortOrder {
 			f := fieldMap[s.ID]
-			// zlog.Info("SORT:", i, j, s.ID, f != nil)
+			// zlog.Info("SORTING:", i, j, s.ID, f != nil)
 			iitem := ic.Children[f.Index]
 			jitem := jc.Children[f.Index]
 			sliceEnumNames := enumTitles[f.ID]
 			if sliceEnumNames != nil {
 				ni := sliceEnumNames[iitem.Interface]
 				nj := sliceEnumNames[jitem.Interface]
+				r := (zstr.CaselessCompare(ni, nj) < 0) == s.SmallFirst
 				if ni == nj {
+					// zlog.Info("sliceEnumNames same:", r, s.ID, i, ni, j, nj)
 					continue
 				}
-				// zlog.Info("sliceEnumNames:", s.ID, i, ni, j, nj)
-				return (zstr.CaselessCompare(ni, nj) < 0) == s.SmallFirst
+				// zlog.Info("sliceEnumNames:", r, s.ID, i, ni, j, nj)
+				return r
 			}
 			switch iitem.Kind {
 			case zreflect.KindBool:

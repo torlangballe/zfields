@@ -52,8 +52,8 @@ func tableGetSliceRValFromPointer(structure interface{}) reflect.Value {
 
 func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v := &TableView{}
-	v.StackView.Init(v, name)
-	v.Vertical = true
+	v.StackView.Init(v, true, name)
+	v.SetSpacing(0)
 	v.ColumnMargin = 3
 	v.RowInset = 7
 	v.HeaderHeight = 28
@@ -201,7 +201,6 @@ func (v *TableView) ArrangeChildren(onlyChild *zui.View) {
 func (v *TableView) ReadyToShow(beforeWindow bool) {
 	if beforeWindow && v.Header != nil {
 		headers := makeHeaderFields(v.fields, v.HeaderHeight)
-		// zlog.Info("TableView.ReadyToShow:", v.HeaderLongPressed)
 		v.Header.Populate(headers)
 		v.Header.HeaderPressed = v.HeaderPressed
 		v.Header.HeaderLongPressed = v.HeaderLongPressed
@@ -293,11 +292,11 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 			h.Align = zgeo.HorExpand
 		}
 		if f.Flags&flagHasHeaderImage != 0 {
-			h.ImageSize = f.Size
+			h.ImageSize = f.HeaderSize
 			if h.ImageSize.IsNull() {
 				h.ImageSize = zgeo.SizeBoth(height - 8)
 			}
-			h.ImagePath = f.FixedPath
+			h.ImagePath = f.HeaderImageFixedPath
 			// zlog.Info("makeHeaderFields:", f.Name, h.ImageSize, h.ImagePath, f)
 		}
 		if f.Flags&(flagHasHeaderImage|flagNoTitle) == 0 {
@@ -323,6 +322,7 @@ func (v *TableView) UpdateWithOldNewSlice(oldSlice, newSlice interface{}) {
 	// zlog.Info("SLICE5:", oldGetter.GetID(5))
 	// var focusedRowID, focusedElementObjectName string
 	if v.Header != nil {
+		// zlog.Info("SortSliceWithFields:", v.ObjectName())
 		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
 	}
 	v.List.UpdateWithOldNewSlice(oldGetter, newGetter)

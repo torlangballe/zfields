@@ -42,10 +42,11 @@ func (v *FieldView) Struct() interface{} {
 func fieldViewNew(id string, vertical bool, structure interface{}, spacing float64, marg zgeo.Size, labelizeWidth float64, parent *FieldView) *FieldView {
 	// start := time.Now()
 	v := &FieldView{}
-	v.StackView.Init(v, id)
+	v.StackView.Init(v, vertical, id)
+	// zlog.Info("fieldViewNew", reflect.ValueOf(v.View).Type())
+
 	v.SetSpacing(12)
 	v.SetMargin(zgeo.RectFromMinMax(marg.Pos(), marg.Pos().Negative()))
-	v.Vertical = vertical
 	v.structure = structure
 	v.labelizeWidth = labelizeWidth
 	v.id = id
@@ -220,10 +221,10 @@ func (v *FieldView) Update() {
 				if f.Kind == zreflect.KindString {
 					path = str
 				}
-				if path != "" && strings.Contains(f.FixedPath, "*") {
-					path = strings.Replace(f.FixedPath, "*", path, 1)
+				if path != "" && strings.Contains(f.ImageFixedPath, "*") {
+					path = strings.Replace(f.ImageFixedPath, "*", path, 1)
 				} else if path == "" || f.Flags&flagIsFixed != 0 {
-					path = f.FixedPath
+					path = f.ImageFixedPath
 				}
 				iv := fview.(*zui.ImageView)
 				iv.SetImage(nil, path, nil)
@@ -330,6 +331,7 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 			parent := n.Parent()
 			if parent != nil {
 				fv, _ := parent.View.(*FieldView)
+				// zlog.Info("callFieldHandler parent", action, f.Name, parent.ObjectName(), fv != nil, reflect.ValueOf(parent.View).Type())
 				if fv != nil {
 					if !first {
 						fh2, _ := fv.structure.(ActionHandler)
