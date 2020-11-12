@@ -45,7 +45,7 @@ func fieldViewNew(id string, vertical bool, structure interface{}, spacing float
 	v.StackView.Init(v, vertical, id)
 	// zlog.Info("fieldViewNew", reflect.ValueOf(v.View).Type())
 
-	v.SetSpacing(12)
+	v.SetSpacing(6)
 	v.SetMargin(zgeo.RectFromMinMax(marg.Pos(), marg.Pos().Negative()))
 	v.structure = structure
 	v.labelizeWidth = labelizeWidth
@@ -63,7 +63,7 @@ func fieldViewNew(id string, vertical bool, structure interface{}, spacing float
 }
 
 func (v *FieldView) Build(update bool) {
-	a := zgeo.Left | zgeo.HorExpand
+	a := zgeo.Left //| zgeo.HorExpand
 	if v.Vertical {
 		a |= zgeo.Top
 	} else {
@@ -419,7 +419,7 @@ func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.Button {
 		name = f.Title
 	}
 	button := zui.ButtonNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
-	button.SetColor(zgeo.ColorWhite)
+	button.SetTextColor(zgeo.ColorBlack)
 	button.TextXMargin = 0
 	return button
 }
@@ -598,7 +598,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	var bar *zui.StackView
 	stack := zui.StackViewNew(vertical, f.ID)
 	if f != nil && f.Spacing != 0 {
-		stack.SetSpacing(f.Spacing)
+		stack.SetSpacing(0) // f.Spacing)
 	}
 	key := v.makeNamedSelectionKey(f)
 	var selectedIndex int
@@ -610,7 +610,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		// zlog.Info("buildStackFromSlice:", key, selectedIndex, vertical, f.ID)
 		zint.Minimize(&selectedIndex, sliceVal.Len()-1)
 		zint.Maximize(&selectedIndex, 0)
-		stack.SetMargin(zgeo.RectFromXY2(zui.GroupingMargin, zui.GroupingMargin, -zui.GroupingMargin, -zui.GroupingMargin))
+		stack.SetMargin(zgeo.RectFromXY2(8, 6, -8, 10))
 		stack.SetCorner(zui.GroupingStrokeCorner)
 		stack.SetStroke(zui.GroupingStrokeWidth, zui.GroupingStrokeColor)
 		label := zui.LabelNew(f.Name)
@@ -792,9 +792,24 @@ func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 	}
 }
 
+func (v *FieldView) MakeGroup(f *Field) {
+	v.SetMargin(zgeo.RectFromXY2(10, 20, -10, -10))
+	v.SetBGColor(zgeo.ColorNewGray(0, 0.1))
+	v.SetCorner(8)
+	v.SetDrawHandler(func(rect zgeo.Rect, canvas *zui.Canvas, view zui.View) {
+		t := zui.TextInfoNew()
+		t.Rect = rect
+		t.Text = f.Name
+		t.Alignment = zgeo.TopLeft
+		t.Font = zui.FontNice(zui.FontDefaultSize-3, zui.FontStyleBold)
+		t.Color = zgeo.ColorNewGray(0.3, 0.6)
+		t.Margin = zgeo.Size{8, 4}
+		t.Draw(canvas)
+	})
+}
 func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
 	zlog.Assert(reflect.ValueOf(v.structure).Kind() == reflect.Ptr, name, v.structure)
-	// fmt.Println("buildStack1", name)
+	// fmt.Println("buildStack1", name, defaultAlign)
 	children := v.getStructItems()
 	labelizeWidth := v.labelizeWidth
 	if v.parentField != nil && v.labelizeWidth == 0 {
@@ -862,6 +877,9 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					vertical := true
 					fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, labelizeWidth, v)
 					fieldView.parentField = f
+					if f.IsGroup {
+						fieldView.MakeGroup(f)
+					}
 					view = fieldView
 					fieldView.buildStack(f.ID, zgeo.TopLeft, zgeo.Size{}, true, 5)
 				}
@@ -886,7 +904,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 				if f.Flags&flagIsImage != 0 {
 					view = v.makeImage(item, f)
 				} else {
-					if f.MaxWidth != f.MinWidth || f.MaxWidth != 0 {
+					if (f.MaxWidth != f.MinWidth || f.MaxWidth != 0) && f.Flags&flagIsButton == 0 {
 						exp = zgeo.HorExpand
 					}
 					// zlog.Info("Make Text:", f.Name, f.MaxWidth, f.MinWidth, f.Size, exp, defaultAlign)
@@ -901,7 +919,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					break
 				}
 				//				zlog.Info("Make slice:", item.Address, item.Value.CanAddr(), item.Value.CanSet(), reflect.ValueOf(item.Value.Interface()).CanAddr())
-				// zlog.Info("Make slice:", item.FieldName, item.Value.Len(), item.Interface)
+				exp = zgeo.Expand
 				view = v.buildStackFromSlice(v.structure, v.Vertical, f)
 				break
 				// 	// view = createStackFromActionFieldHandlerSlice(&item, f)
@@ -980,7 +998,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 			def &= ^all
 		}
 		cell.Alignment = def | exp | f.Alignment
-		// zlog.Info("field align:", f.Alignment, f.Name, def, exp, cell.Alignment, int(cell.Alignment))
+		// zlog.Info("field align2:", f.Alignment, f.Name, def, f.Flags&flagIsButton, exp, cell.Alignment, int(cell.Alignment))
 		if useMinWidth {
 			cell.MinSize.W = f.MinWidth
 			// zlog.Info("Cell Width:", f.Name, cell.MinSize.W)

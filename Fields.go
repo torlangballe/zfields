@@ -48,7 +48,7 @@ const (
 	flagNoTitle
 	flagToClipboard
 	flagIsNamedSelection
-	flagIsTabGroup
+	// flagIsTabGroup
 	flagIsStringer
 	flagIsPassword
 	flagExpandFromMinSize
@@ -98,6 +98,7 @@ type Field struct {
 	Shadow               zgeo.DropShadow
 	SortSmallFirst       zbool.BoolInd
 	SortPriority         int
+	IsGroup              bool
 }
 
 type ActionHandler interface {
@@ -271,6 +272,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if floatErr == nil {
 				f.MaxWidth = n
 			}
+		case "group":
+			f.IsGroup = true
 		case "fixed":
 			f.Flags |= flagIsFixed
 		case "shadow":
