@@ -215,7 +215,7 @@ func (v *TableView) ReadyToShow(beforeWindow bool) {
 			count := v.GetRowCount()
 			for i := 0; i < count; i++ {
 				if getter.GetID(i) == sid {
-					v.List.Select(i)
+					v.List.Select(i, false)
 					break
 				}
 			}

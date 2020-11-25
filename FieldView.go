@@ -205,12 +205,17 @@ func (v *FieldView) Update() {
 			}
 
 		case zreflect.KindInt, zreflect.KindFloat:
+			str := getTextFromNumberishItem(item, f)
+			if f.IsStatic() {
+				label, _ := fview.(*zui.Label)
+				label.SetText(str)
+				break
+			}
 			tv, _ := fview.(*zui.TextView)
 			if tv != nil {
 				if tv.IsEditing() {
 					break
 				}
-				str := getTextFromNumberishItem(item, f)
 				tv.SetText(str)
 			}
 
@@ -265,10 +270,9 @@ func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
 	if single {
 		subViewCount -= 2
 	}
-	if subViewCount != item.Value.Len() {
-		zlog.Info("SLICE VIEW: length changed!!!", subViewCount, item.Value.Len())
-	}
-
+	// if subViewCount != item.Value.Len() {
+	// 	zlog.Info("SLICE VIEW: length changed!!!", subViewCount, item.Value.Len())
+	// }
 	for _, c := range children {
 		if n >= item.Value.Len() {
 			break
@@ -526,7 +530,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 			edited := true
 			v.handleUpdate(edited)
 		}
-		fmt.Printf("Changed text: %p v:%p %+v\n", v.structure, v, v.structure)
+		// fmt.Printf("Changed text: %p v:%p %+v\n", v.structure, v, v.structure)
 		view = zui.View(tv)
 		v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
 	})
@@ -649,7 +653,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			fieldView.buildStack(f.ID, a, zgeo.Size{}, true, 5)
 			if !f.IsStatic() && !single {
 				label := makeCircledLabelButton("–", f)
-				fieldView.Add(zgeo.LeftCenter, label)
+				fieldView.Add(zgeo.CenterLeft, label)
 				index := n
 				label.SetPressedHandler(func() {
 					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
@@ -691,14 +695,14 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			//			stack.CustomView.PressedHandler()()
 		})
 		if bar != nil {
-			bar.Add(zgeo.RightCenter, label)
+			bar.Add(zgeo.CenterRight, label)
 		} else {
 			stack.Add(zgeo.TopLeft, label)
 		}
 	}
 	if single {
 		label := makeCircledLabelButton("–", f)
-		bar.Add(zgeo.RightCenter, label)
+		bar.Add(zgeo.CenterRight, label)
 		label.SetPressedHandler(func() {
 			val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
 			zslice.RemoveAt(val.Addr().Interface(), selectedIndex)
@@ -709,7 +713,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		// zlog.Info("Make Slice thing:", key, selectedIndex, val.Len())
 
 		label = makeCircledLabelButton("⇦", f)
-		bar.Add(zgeo.LeftCenter, label)
+		bar.Add(zgeo.CenterLeft, label)
 		label.SetPressedHandler(func() {
 			v.changeNamedSelectionIndex(selectedIndex-1, f)
 			v.updateSliceValue(structure, stack, vertical, f, false)
@@ -723,10 +727,10 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		label = zui.LabelNew(str)
 		label.SetColor(zgeo.ColorNewGray(0, 1))
 		f.SetFont(label, nil)
-		bar.Add(zgeo.LeftCenter, label)
+		bar.Add(zgeo.CenterLeft, label)
 
 		label = makeCircledLabelButton("⇨", f)
-		bar.Add(zgeo.LeftCenter, label)
+		bar.Add(zgeo.CenterLeft, label)
 		label.SetPressedHandler(func() {
 			v.changeNamedSelectionIndex(selectedIndex+1, f)
 			v.updateSliceValue(structure, stack, vertical, f, false)
@@ -1121,4 +1125,33 @@ func (v *FieldView) toDataItem(f *Field, view zui.View, showError bool) error {
 		zui.AlertShowError("", err)
 	}
 	return err
+}
+
+func ParentFieldView(view zui.View) *FieldView {
+	for _, nv := range zui.ViewGetNative(view).AllParents() {
+		fv, _ := nv.View.(*FieldView)
+		if fv != nil {
+			return fv
+		}
+	}
+	return nil
+}
+
+func (fv *FieldView) getStructItems() []zreflect.Item {
+	k := reflect.ValueOf(fv.structure).Kind()
+	// zlog.Info("getStructItems", direct, k, sub)
+	zlog.Assert(k == reflect.Ptr, "not pointer", k)
+	options := zreflect.Options{UnnestAnonymous: true, Recursive: false}
+	rootItems, err := zreflect.ItterateStruct(fv.structure, options)
+	if err != nil {
+		panic(err)
+	}
+	// for _, c := range rootItems.Children {
+	// 	if c.FieldName == "CPU" {
+	// 		zlog.Info("CPU COunt:", c.Value.Len())
+	// 	}
+	// }
+	// zlog.Info("getStructItems DONE", k)
+	// zlog.Info("Get Struct Items sub:", len(rootItems.Children))
+	return rootItems.Children
 }

@@ -148,25 +148,6 @@ func findFieldWithIndex(fields *[]Field, index int) *Field {
 	return nil
 }
 
-func (fv *FieldView) getStructItems() []zreflect.Item {
-	k := reflect.ValueOf(fv.structure).Kind()
-	// zlog.Info("getStructItems", direct, k, sub)
-	zlog.Assert(k == reflect.Ptr, "not pointer", k)
-	options := zreflect.Options{UnnestAnonymous: true, Recursive: false}
-	rootItems, err := zreflect.ItterateStruct(fv.structure, options)
-	if err != nil {
-		panic(err)
-	}
-	// for _, c := range rootItems.Children {
-	// 	if c.FieldName == "CPU" {
-	// 		zlog.Info("CPU COunt:", c.Value.Len())
-	// 	}
-	// }
-	// zlog.Info("getStructItems DONE", k)
-	// zlog.Info("Get Struct Items sub:", len(rootItems.Children))
-	return rootItems.Children
-}
-
 func findLocalField(children *[]zreflect.Item, name string) *zreflect.Item {
 	name = zstr.HeadUntil(name, ".")
 	for i, c := range *children {
@@ -663,4 +644,20 @@ func SortSliceWithFields(slice interface{}, fields []Field, sortOrder []zui.Sort
 		return false
 	})
 	// zlog.Info("SORT TIME:", time.Since(start))
+}
+
+// ID is convenience method to get id from a field if any (used often in HandleAction methods).
+func ID(f *Field) string {
+	if f != nil {
+		return f.ID
+	}
+	return ""
+}
+
+// Name is convenience method to get name from a field if any (used often in HandleAction methods for debugging).
+func Name(f *Field) string {
+	if f != nil {
+		return f.Name
+	}
+	return ""
 }
