@@ -496,6 +496,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 	str := getTextFromNumberishItem(item, f)
 	if f.IsStatic() {
 		label := zui.LabelNew(str)
+		label.SetMaxLines(f.Rows)
 		j := f.Justify
 		if j == zgeo.AlignmentNone {
 			j = f.Alignment & (zgeo.Left | zgeo.HorCenter | zgeo.Right)
@@ -574,7 +575,8 @@ func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView
 	ct := stack.Parent().View.(zui.ContainerType)
 	newStack := v.buildStackFromSlice(structure, vertical, f)
 	ct.ReplaceChild(stack, newStack)
-	ctp := stack.Parent().Parent().View.(zui.ContainerType)
+	ns := zui.ViewGetNative(newStack)
+	ctp := ns.Parent().Parent().View.(zui.ContainerType)
 	ctp.ArrangeChildren(nil)
 	if sendEdited {
 		fh, _ := structure.(ActionHandler)
@@ -704,10 +706,14 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		label := makeCircledLabelButton("–", f)
 		bar.Add(zgeo.CenterRight, label)
 		label.SetPressedHandler(func() {
-			val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-			zslice.RemoveAt(val.Addr().Interface(), selectedIndex)
-			// zlog.Info("newlen:", index, val.Len())
-			v.updateSliceValue(structure, stack, vertical, f, true)
+			zui.AlertAsk("Delete this entry?", func(ok bool) {
+				if ok {
+					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
+					zslice.RemoveAt(val.Addr().Interface(), selectedIndex)
+					// zlog.Info("newlen:", index, val.Len())
+					v.updateSliceValue(structure, stack, vertical, f, true)
+				}
+			})
 		})
 		label.SetUsable(sliceVal.Len() > 0)
 		// zlog.Info("Make Slice thing:", key, selectedIndex, val.Len())
