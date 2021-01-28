@@ -205,6 +205,11 @@ func (v *FieldView) Update() {
 			}
 
 		case zreflect.KindInt, zreflect.KindFloat:
+			_, got := item.Interface.(zbool.BitsetItemsOwner)
+			if got {
+				updateFlagStack(item, f, fview)
+			}
+
 			str := getTextFromNumberishItem(item, f)
 			if f.IsStatic() {
 				label, _ := fview.(*zui.Label)
@@ -817,6 +822,45 @@ func (v *FieldView) MakeGroup(f *Field) {
 		t.Draw(canvas)
 	})
 }
+
+func makeFlagStack(flags zreflect.Item, f *Field) zui.View {
+	stack := zui.StackViewHor("flags")
+	stack.SetMinSize(zgeo.Size{20, 20})
+	stack.SetSpacing(2)
+	return stack
+}
+
+func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
+	stack := view.(*zui.StackView)
+	zlog.Info("zfields.updateFlagStack", Name(f))
+	bso := flags.Interface.(zbool.BitsetItemsOwner)
+	bitset := bso.GetBitsetItems()
+	n := flags.Value.Int()
+	for _, bs := range bitset {
+		name := bs.Name
+		vf := stack.FindViewWithName(name, false)
+		if n&bs.Mask != 0 {
+			if vf == nil {
+				path := "images/" + f.ID + "/" + name + ".png"
+				// zlog.Info("flag image:", name, path)
+				iv := zui.ImageViewNew(nil, path, zgeo.Size{16, 16})
+				iv.SetObjectName(name) // very important as we above find it in stack
+				iv.SetMinSize(zgeo.Size{16, 16})
+				stack.Add(zgeo.Center, iv)
+				if stack.Presented {
+					stack.ArrangeChildren(nil)
+				}
+				title := bs.Title
+				iv.SetToolTip(title)
+			}
+		} else {
+			if vf != nil {
+				stack.RemoveNamedChild(name, false)
+				stack.ArrangeChildren(nil)
+			}
+		}
+	}
+}
 func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
 	zlog.Assert(reflect.ValueOf(v.structure).Kind() == reflect.Ptr, name, v.structure)
 	// fmt.Println("buildStack1", name, defaultAlign)
@@ -904,6 +948,11 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					exp = zgeo.HorShrink
 					view = v.makeCheckbox(item, f, zbool.BoolInd(item.Value.Int()))
 				} else {
+					_, got := item.Interface.(zbool.BitsetItemsOwner)
+					if got {
+						view = makeFlagStack(item, f)
+						break
+					}
 					view = v.makeText(item, f)
 				}
 
