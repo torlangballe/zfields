@@ -1,3 +1,5 @@
+// +build zui
+
 package zfields
 
 import (
@@ -186,6 +188,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		n, floatErr := strconv.ParseFloat(val, 32)
 		flag := zbool.FromString(val, false)
 		switch key {
+		case "format":
+			f.Format = val
 		case "vertical":
 			f.Vertical = zbool.True
 		case "horizontal":
@@ -396,6 +400,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	if f.Placeholder == "$HAS$" {
 		f.Placeholder = f.Name
 	}
+
 	switch item.Kind {
 	case zreflect.KindFloat:
 		if f.MinWidth == 0 {
@@ -411,11 +416,13 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 					f.Flags |= flagTimeFlags
 				}
 			}
-			if f.MinWidth == 0 {
-				f.MinWidth = 40
-			}
-			if f.MaxWidth == 0 {
-				f.MaxWidth = 80
+			if f.Enum == "" && f.LocalEnum == "" {
+				if f.MinWidth == 0 {
+					f.MinWidth = 40
+				}
+				if f.MaxWidth == 0 {
+					f.MaxWidth = 80
+				}
 			}
 			break
 		}
@@ -427,8 +434,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		}
 	case zreflect.KindString:
 		if f.Flags&(flagHasHeaderImage|flagIsImage) != 0 {
-			f.MinWidth = f.HeaderSize.W
-			f.MaxWidth = f.HeaderSize.W
+			zfloat.Maximize(&f.MinWidth, f.HeaderSize.W)
+			zfloat.Maximize(&f.MaxWidth, f.HeaderSize.W)
 		}
 		if f.MinWidth == 0 && f.Flags&flagIsButton == 0 {
 			f.MinWidth = 20
@@ -527,8 +534,9 @@ func addNamesOfEnumValue(enumTitles map[string]mapValueToName, slice interface{}
 		zlog.Assert(ierr == nil)
 		item := ic.Children[f.Index]
 		di := enum.FindValue(item.Interface)
-		// zlog.Info("addNamesOfEnumValue:", f.Name, "di:", di, "item:", item.Interface)
-		m[item.Interface] = di.Name
+		if di != nil {
+			m[item.Interface] = di.Name
+		}
 	}
 }
 

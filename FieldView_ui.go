@@ -1,3 +1,5 @@
+// +build zui
+
 package zfields
 
 import (
@@ -19,6 +21,7 @@ import (
 	"github.com/torlangballe/zutil/zstr"
 	"github.com/torlangballe/zutil/ztime"
 	"github.com/torlangballe/zutil/ztimer"
+	"github.com/torlangballe/zutil/zwords"
 )
 
 type FieldView struct {
@@ -44,8 +47,6 @@ func fieldViewNew(id string, vertical bool, structure interface{}, spacing float
 	v := &FieldView{}
 	v.StackView.Init(v, vertical, id)
 	// zlog.Info("fieldViewNew", reflect.ValueOf(v.View).Type())
-
-	v.SetSpacing(6)
 	v.SetMargin(zgeo.RectFromMinMax(marg.Pos(), marg.Pos().Negative()))
 	v.structure = structure
 	v.labelizeWidth = labelizeWidth
@@ -113,10 +114,10 @@ func (v *FieldView) Update() {
 			continue
 		}
 		// fmt.Println("FV Update Item2:", f.Name)
-
-		menu, _ := fview.(*zui.MenuView)
-		if (f.Enum != "" && f.Kind != zreflect.KindSlice) || f.LocalEnum != "" {
+		menuType, _ := fview.(zui.MenuType)
+		if menuType != nil && ((f.Enum != "" && f.Kind != zreflect.KindSlice) || f.LocalEnum != "") {
 			var enum zdict.Items
+			// zlog.Info("Update FV: Menu:", f.Name, f.Enum, f.LocalEnum)
 			if f.Enum != "" {
 				enum, _ = fieldEnums[f.Enum]
 				// zlog.Info("UpdateStack Enum:", f.Name)
@@ -127,7 +128,7 @@ func (v *FieldView) Update() {
 				enum = ei.Interface.(zdict.ItemsGetter).GetItems()
 			}
 			// zlog.Assert(enum != nil, f.Name, f.LocalEnum, f.Enum)
-			menu.SetAndSelect(enum, item.Interface)
+			menuType.UpdateItems(enum, []interface{}{item.Interface})
 			continue
 		}
 		if f.LocalEnable != "" {
@@ -155,7 +156,7 @@ func (v *FieldView) Update() {
 			}
 			continue
 		}
-		if menu == nil && f.Kind == zreflect.KindSlice {
+		if menuType == nil && f.Kind == zreflect.KindSlice {
 			// val, found := zreflect.FindFieldWithNameInStruct(f.FieldName, v.structure, true)
 			// fmt.Printf("updateSliceFieldView: %s %p %p %v %p\n", v.id, item.Interface, val.Interface(), found, view)
 			updateSliceFieldView(fview, item, f)
@@ -166,8 +167,12 @@ func (v *FieldView) Update() {
 			getter, _ := item.Interface.(zdict.ItemsGetter)
 			if getter != nil {
 				items := getter.GetItems()
-				menu := fview.(*zui.MenuView)
-				menu.SetValues(items)
+				mt := fview.(zui.MenuType)
+				// zlog.Info("fv update slice:", f.Name, len(items), mt != nil, reflect.ValueOf(fview).Type())
+				if mt != nil {
+					// assert menu is static...
+					mt.UpdateItems(items, nil)
+				}
 			}
 		case zreflect.KindTime:
 			tv, _ := fview.(*zui.TextView)
@@ -236,8 +241,8 @@ func (v *FieldView) Update() {
 				} else if path == "" || f.Flags&flagIsFixed != 0 {
 					path = f.ImageFixedPath
 				}
-				iv := fview.(*zui.ImageView)
-				iv.SetImage(nil, path, nil)
+				io := fview.(zui.ImageOwner)
+				io.SetImage(nil, path, nil)
 			} else {
 				if f.IsStatic() {
 					label, _ := fview.(*zui.Label)
@@ -271,7 +276,7 @@ func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
 	children := (view.(zui.ContainerType)).GetChildren()
 	n := 0
 	subViewCount := len(children)
-	single := f.Flags&flagIsNamedSelection != 0
+	single := (f.Flags&flagIsNamedSelection != 0)
 	if single {
 		subViewCount -= 2
 	}
@@ -413,7 +418,7 @@ func (v *FieldView) findFieldWithID(id string) *Field {
 	return nil
 }
 
-func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.Button {
+func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.ButtonView {
 	// zlog.Info("makeButton:", f.Name, f.Height)
 	format := f.Format
 	if format == "" {
@@ -427,37 +432,73 @@ func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.Button {
 	if f.Title != "" {
 		name = f.Title
 	}
-	button := zui.ButtonNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
+	button := zui.ButtonViewNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
 	button.SetTextColor(zgeo.ColorBlack)
 	button.TextXMargin = 0
 	return button
 }
 
-func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) *zui.MenuView {
-	menu := zui.MenuViewNew(f.Name+"Menu", items, item.Interface, f.IsStatic())
-	menu.SetMaxWidth(f.MaxWidth)
-
-	// zlog.Info("makeMenu2:", f.Name, items.Count(), item.Interface, item.TypeName, item.Kind)
-
+func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zui.View {
 	var view zui.View
-	view = menu
-	menu.SetSelectedHandler(func(name string, value interface{}) {
-		//		zlog.Debug(iface, f.Name)
-		v.toDataItem(f, menu, false)
-		//		item.Value.Set(reflect.ValueOf(iface))
-		if menu.IsStatic {
-			val := menu.CurrentValue()
-			kind := reflect.ValueOf(val).Kind()
-			if kind != reflect.Ptr && kind != reflect.Struct {
-				nf := *f
-				nf.ActionValue = val
-				v.callActionHandlerFunc(&nf, PressedAction, item.Interface, &view)
-			}
-		} else {
-			v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
+
+	if f.IsStatic() {
+		multi := false
+		// zlog.Info("FV Menu Make static:", f.ID, f.Format, f.Name)
+		vals := []interface{}{item.Interface}
+		isImage := (f.ImageFixedPath != "")
+		shape := zui.ShapeViewTypeRoundRect
+		if isImage {
+			shape = zui.ShapeViewTypeNone
 		}
-	})
-	return menu
+		menu := zui.MenuedShapeViewNew(shape, zgeo.Size{20, 20}, f.ID, items, vals, f.IsStatic(), multi)
+		if isImage {
+			menu.SetImage(nil, f.ImageFixedPath, nil)
+			menu.ImageAlign = zgeo.Center | zgeo.Proportional
+			menu.ImageMaxSize = f.Size
+		} else {
+			menu.SetPillStyle()
+			if len(f.Colors) != 0 {
+				menu.SetColor(zgeo.ColorFromString(f.Colors[0]))
+			}
+		}
+		view = menu
+		if f.Format != "" {
+			// zlog.Info("Make Menu Format", f.Name, f.Format)
+			if f.Format == "%d" {
+				menu.GetTitle = func(icount int) string {
+					return strconv.Itoa(icount)
+				}
+			} else {
+				menu.GetTitle = func(icount int) string {
+					return zwords.PluralWord(f.Format, float64(icount), "", "", 0)
+				}
+			}
+		}
+		menu.SetSelectedHandler(func() {
+			v.toDataItem(f, menu, false)
+			if menu.IsStatic {
+				sel := menu.SelectedItem()
+				kind := reflect.ValueOf(sel.Value).Kind()
+				zlog.Info("action pressed", kind, sel.Name, "val:", sel.Value)
+				if kind != reflect.Ptr && kind != reflect.Struct {
+					nf := *f
+					nf.ActionValue = sel.Value
+					v.callActionHandlerFunc(&nf, PressedAction, item.Interface, &view)
+				}
+			} else {
+				v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
+			}
+		})
+	} else {
+		menu := zui.MenuViewNew(f.Name+"Menu", items, item.Interface)
+		menu.SetMaxWidth(f.MaxWidth)
+		view = menu
+		menu.SetSelectedHandler(func() {
+			v.toDataItem(f, menu, false)
+			v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
+		})
+	}
+	return view
 }
 
 func getTimeString(item zreflect.Item, f *Field) string {
@@ -609,11 +650,11 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	var bar *zui.StackView
 	stack := zui.StackViewNew(vertical, f.ID)
 	if f != nil && f.Spacing != 0 {
-		stack.SetSpacing(0) // f.Spacing)
+		stack.SetSpacing(f.Spacing)
 	}
 	key := v.makeNamedSelectionKey(f)
 	var selectedIndex int
-	single := f.Flags&flagIsNamedSelection != 0
+	single := (f.Flags&flagIsNamedSelection != 0)
 	var fieldView *FieldView
 	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
 	if single {
@@ -621,7 +662,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		// zlog.Info("buildStackFromSlice:", key, selectedIndex, vertical, f.ID)
 		zint.Minimize(&selectedIndex, sliceVal.Len()-1)
 		zint.Maximize(&selectedIndex, 0)
-		stack.SetMargin(zgeo.RectFromXY2(8, 6, -8, 10))
+		stack.SetMargin(zgeo.RectFromXY2(8, 6, -8, -10))
 		stack.SetCorner(zui.GroupingStrokeCorner)
 		stack.SetStroke(zui.GroupingStrokeWidth, zui.GroupingStrokeColor)
 		label := zui.LabelNew(f.Name)
@@ -901,18 +942,19 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					// zlog.Info("make local enum:", f.Name, f.LocalEnum, enum, ei)
 					// 	continue
 					// }
-					// zlog.Info("make local enum:", f.Name, f.LocalEnum, i, MenuItemsLength(enum))
+					//					zlog.Info("make local enum:", f.Name, f.LocalEnum)
 					menu := v.makeMenu(item, f, enum)
 					if menu == nil {
 						zlog.Error(nil, "no local enum for", f.LocalEnum)
 						continue
 					}
 					view = menu
-					menu.SelectWithValue(item.Interface)
+					// mt := view.(zui.MenuType)
+					//!!					mt.SelectWithValue(item.Interface, true)
 				}
 			}
 		} else if f.Enum != "" {
-			// fmt.Printf("make enum: %s %v\n", f.Name, item)
+			// fmt.Println("make enum:", f.Name)
 			enum, _ := fieldEnums[f.Enum]
 			zlog.Assert(enum != nil)
 			view = v.makeMenu(item, f, enum)
@@ -993,7 +1035,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 						v.updateSinceTime(view.(*zui.Label), f)
 						return true
 					})
-					zui.ViewGetNative(view).AddStopper(timer)
+					zui.ViewGetNative(view).AddStopper(timer.Stop)
 				}
 
 			default:
@@ -1060,7 +1102,6 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		// zlog.Info("field align2:", f.Alignment, f.Name, def, f.Flags&flagIsButton, exp, cell.Alignment, int(cell.Alignment))
 		if useMinWidth {
 			cell.MinSize.W = f.MinWidth
-			// zlog.Info("Cell Width:", f.Name, cell.MinSize.W)
 		}
 		cell.MaxSize.W = f.MaxWidth
 		if cell.MinSize.W != 0 && (j == 0 || j == len(children)-1) {
@@ -1201,12 +1242,6 @@ func (fv *FieldView) getStructItems() []zreflect.Item {
 	if err != nil {
 		panic(err)
 	}
-	// for _, c := range rootItems.Children {
-	// 	if c.FieldName == "CPU" {
-	// 		zlog.Info("CPU COunt:", c.Value.Len())
-	// 	}
-	// }
-	// zlog.Info("getStructItems DONE", k)
 	// zlog.Info("Get Struct Items sub:", len(rootItems.Children))
 	return rootItems.Children
 }

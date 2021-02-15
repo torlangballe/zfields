@@ -1,3 +1,5 @@
+// +build zui
+
 package zfields
 
 import (
@@ -125,8 +127,8 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
 		// v.ArrangeChildren(nil)
 	}
-	v.List.HoverColor = DefaultTableRowHoverColor
-
+	v.List.HighlightColor = DefaultTableRowHoverColor
+	v.List.HoverHighlight = true
 	v.Add(zgeo.Left|zgeo.Top|zgeo.Expand, v.List)
 	if !rval.IsNil() {
 		v.List.RowUpdater = func(i int, edited bool) {
