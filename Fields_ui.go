@@ -90,6 +90,7 @@ type Field struct {
 	UpdateSecs           float64
 	LabelizeWidth        float64
 	LocalEnable          string
+	LocalShow            string // not implemented yet
 	FontSize             float64
 	FontName             string
 	FontStyle            zui.FontStyle
@@ -150,10 +151,10 @@ func findFieldWithIndex(fields *[]Field, index int) *Field {
 	return nil
 }
 
-func findLocalField(children *[]zreflect.Item, name string) *zreflect.Item {
+func findLocalFieldWithID(children *[]zreflect.Item, name string) *zreflect.Item {
 	name = zstr.HeadUntil(name, ".")
 	for i, c := range *children {
-		if c.FieldName == name {
+		if fieldNameToID(c.FieldName) == name {
 			return &(*children)[i]
 		}
 	}
@@ -166,6 +167,7 @@ func fieldNameToID(name string) string {
 func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, index int) bool {
 	f.Index = index
 	f.ID = fieldNameToID(item.FieldName)
+	// zlog.Info("FIELD:", f.ID, item.FieldName)
 	f.Kind = item.Kind
 	f.FieldName = item.FieldName
 	f.Alignment = zgeo.AlignmentNone
@@ -369,7 +371,11 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			f.Flags |= flagIsButton
 		case "enable":
 			if !zstr.HasPrefix(val, ".", &f.LocalEnable) {
-				zlog.Error(nil, "fields enable: only dot prefix local fields allowed")
+				zlog.Error(nil, "fields enable: only dot prefix local fields allowed:", val)
+			}
+		case "show":
+			if !zstr.HasPrefix(val, ".", &f.LocalShow) {
+				zlog.Error(nil, "fields show: only dot prefix local fields allowed:", val)
 			}
 		case "placeholder":
 			if val != "" {

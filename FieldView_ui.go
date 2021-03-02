@@ -17,7 +17,6 @@ import (
 	"github.com/torlangballe/zutil/zint"
 	"github.com/torlangballe/zutil/zlog"
 	"github.com/torlangballe/zutil/zreflect"
-	"github.com/torlangballe/zutil/zslice"
 	"github.com/torlangballe/zutil/zstr"
 	"github.com/torlangballe/zutil/ztime"
 	"github.com/torlangballe/zutil/ztimer"
@@ -109,11 +108,41 @@ func (v *FieldView) Update() {
 			//			zlog.Info("FV Update no view found:", i, v.id, f.ID)
 			continue
 		}
+		if f.LocalShow != "" {
+			eItem := findLocalFieldWithID(&children, f.LocalShow)
+			show, got := eItem.Interface.(bool)
+			if got {
+				parent := zui.ViewGetNative(fview).Parent()
+				if parent != nil && parent != &v.NativeView { // it has a holding parent that is what actually shoule be shown/unshown
+					parent.Show(show)
+				} else {
+					fview.Show(show)
+				}
+			}
+		}
+		if f.LocalEnable != "" {
+			eItem := findLocalFieldWithID(&children, f.LocalEnable)
+			enabled, got := eItem.Interface.(bool)
+			if got {
+				parent := zui.ViewGetNative(fview).Parent()
+				if parent != nil && parent != &v.NativeView { // it has a holding parent that is what actually shoule be en/dis-abled
+					parent.SetUsable(enabled)
+				} else {
+					fview.SetUsable(enabled)
+				}
+			}
+		}
+		if f.Flags&flagIsButton != 0 {
+			enabled, is := item.Interface.(bool)
+			if is {
+				fview.SetUsable(enabled)
+			}
+			continue
+		}
 		called := v.callActionHandlerFunc(f, DataChangedAction, item.Interface, &fview)
 		if called {
 			continue
 		}
-		// fmt.Println("FV Update Item2:", f.Name)
 		menuType, _ := fview.(zui.MenuType)
 		if menuType != nil && ((f.Enum != "" && f.Kind != zreflect.KindSlice) || f.LocalEnum != "") {
 			var enum zdict.Items
@@ -123,37 +152,12 @@ func (v *FieldView) Update() {
 				// zlog.Info("UpdateStack Enum:", f.Name)
 				// zdict.DumpNamedValues(enum)
 			} else {
-				ei := findLocalField(&children, f.LocalEnum)
+				ei := findLocalFieldWithID(&children, f.LocalEnum)
 				zlog.Assert(ei != nil, f.Name, f.LocalEnum)
 				enum = ei.Interface.(zdict.ItemsGetter).GetItems()
 			}
 			// zlog.Assert(enum != nil, f.Name, f.LocalEnum, f.Enum)
 			menuType.UpdateItems(enum, []interface{}{item.Interface})
-			continue
-		}
-		if f.LocalEnable != "" {
-			eItem := findLocalField(&children, f.LocalEnable)
-			e, got := eItem.Interface.(bool)
-			// zlog.Info("updateStack localEnable:", f.Name, f.LocalEnable, e, got)
-			if got {
-				parent := zui.ViewGetNative(fview).Parent()
-				//				if parent != nil && parent != stack(strings.HasPrefix(parent.ObjectName(), "$labelize.") || strings.HasPrefix(parent.ObjectName(), "$labledCheckBoxStack.")) {
-				if parent != nil && parent != &v.NativeView {
-					parent.SetUsable(e)
-				} else {
-					fview.SetUsable(e)
-				}
-			}
-		}
-		// if f.Flags&flagIsMenuedGroup != 0 {
-		// 	updateMenuedGroup(view, item)
-		// 	continue
-		// }
-		if f.Flags&flagIsButton != 0 {
-			enabled, is := item.Interface.(bool)
-			if is {
-				fview.SetUsable(enabled)
-			}
 			continue
 		}
 		if menuType == nil && f.Kind == zreflect.KindSlice {
@@ -269,46 +273,6 @@ func (v *FieldView) Update() {
 		sview := v.View
 		fh.HandleAction(nil, DataChangedAction, &sview)
 	}
-}
-
-func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
-	// zlog.Info("updateSliceFieldView:", view.ObjectName(), item.FieldName, f.Name)
-	children := (view.(zui.ContainerType)).GetChildren()
-	n := 0
-	subViewCount := len(children)
-	single := (f.Flags&flagIsNamedSelection != 0)
-	if single {
-		subViewCount -= 2
-	}
-	// if subViewCount != item.Value.Len() {
-	// 	zlog.Info("SLICE VIEW: length changed!!!", subViewCount, item.Value.Len())
-	// }
-	for _, c := range children {
-		if n >= item.Value.Len() {
-			break
-		}
-		cview := c
-		fv, _ := c.(*FieldView)
-		// zlog.Info("CHILD:", c.ObjectName(), fv != nil, reflect.ValueOf(c).Type())
-		val := item.Value.Index(n)
-		if fv == nil {
-			ah, _ := val.Interface().(ActionFieldHandler)
-			if ah != nil {
-				ah.HandleFieldAction(f, DataChangedAction, &cview)
-				n++
-				continue
-			}
-		} else {
-			// fmt.Printf("Update Sub Slice field: %s %+v\n", fv.ObjectName(), val.Addr().Interface())
-			n++
-			fv.structure = val.Addr().Interface()
-			fv.Update()
-		}
-		// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
-	}
-	// if updateStackFromActionFieldHandlerSlice(view, &item, f) {
-	// 	continue
-	// }
 }
 
 func FieldViewNew(id string, structure interface{}, labelizeWidth float64) *FieldView {
@@ -605,193 +569,6 @@ func (v *FieldView) makeImage(item zreflect.Item, f *Field) zui.View {
 	return iv
 }
 
-func makeCircledLabelButton(text string, f *Field) *zui.Label {
-	w := zui.FontDefaultSize + 14
-	label := zui.LabelNew(text)
-	font := zui.FontNice(w-8, zui.FontStyleNormal)
-	f.SetFont(label, font)
-	label.SetMargin(zgeo.RectFromXY2(0, 2, 0, -2))
-	label.SetMinWidth(w)
-	label.SetCorner(w / 2)
-	label.SetTextAlignment(zgeo.Center)
-	label.SetBGColor(zgeo.ColorNewGray(0, 0.2))
-	return label
-}
-func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView, vertical bool, f *Field, sendEdited bool) zui.View {
-	ct := stack.Parent().View.(zui.ContainerType)
-	newStack := v.buildStackFromSlice(structure, vertical, f)
-	ct.ReplaceChild(stack, newStack)
-	ns := zui.ViewGetNative(newStack)
-	ctp := ns.Parent().Parent().View.(zui.ContainerType)
-	ctp.ArrangeChildren(nil)
-	if sendEdited {
-		fh, _ := structure.(ActionHandler)
-		// zlog.Info("updateSliceValue:", fh != nil, f.Name, fh)
-		if fh != nil {
-			fh.HandleAction(f, EditedAction, &newStack)
-		}
-	}
-	return newStack
-}
-
-func (v *FieldView) makeNamedSelectionKey(f *Field) string {
-	// zlog.Info("makeNamedSelectKey:", v.id, f.FieldName)
-	return v.id + "." + f.FieldName + ".NamedSelectionIndex"
-}
-
-func (v *FieldView) changeNamedSelectionIndex(i int, f *Field) {
-	key := v.makeNamedSelectionKey(f)
-	zui.DefaultLocalKeyValueStore.SetInt(i, key, true)
-}
-
-func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f *Field) zui.View {
-	sliceVal, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-	// fmt.Printf("buildStackFromSlice: %s %v %v %+v\n", f.FieldName, reflect.ValueOf(structure).Kind(), reflect.ValueOf(structure).Type(), structure)
-	var bar *zui.StackView
-	stack := zui.StackViewNew(vertical, f.ID)
-	if f != nil && f.Spacing != 0 {
-		stack.SetSpacing(f.Spacing)
-	}
-	key := v.makeNamedSelectionKey(f)
-	var selectedIndex int
-	single := (f.Flags&flagIsNamedSelection != 0)
-	var fieldView *FieldView
-	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
-	if single {
-		selectedIndex, _ = zui.DefaultLocalKeyValueStore.GetInt(key, 0)
-		// zlog.Info("buildStackFromSlice:", key, selectedIndex, vertical, f.ID)
-		zint.Minimize(&selectedIndex, sliceVal.Len()-1)
-		zint.Maximize(&selectedIndex, 0)
-		stack.SetMargin(zgeo.RectFromXY2(8, 6, -8, -10))
-		stack.SetCorner(zui.GroupingStrokeCorner)
-		stack.SetStroke(zui.GroupingStrokeWidth, zui.GroupingStrokeColor)
-		label := zui.LabelNew(f.Name)
-		label.SetColor(zgeo.ColorNewGray(0, 1))
-		font := zui.FontNice(zui.FontDefaultSize, zui.FontStyleBoldItalic)
-		f.SetFont(label, font)
-		stack.Add(zgeo.TopLeft, label)
-	}
-	for n := 0; n < sliceVal.Len(); n++ {
-		var view zui.View
-		nval := sliceVal.Index(n)
-		h, _ := nval.Interface().(ActionFieldHandler)
-		if h != nil {
-			if h.HandleFieldAction(f, CreateFieldViewAction, &view) {
-				stack.Add(zgeo.TopLeft, view)
-			}
-		}
-		if view == nil {
-			childStruct := nval.Addr().Interface()
-			vert := !vertical
-			if f.LabelizeWidth != 0 {
-				vert = true
-			}
-			// fmt.Printf("buildStackFromSlice element: %s %p\n", f.FieldName, childStruct)
-
-			fieldView = fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, v.labelizeWidth, v)
-			view = fieldView
-			fieldView.parentField = f
-			a := zgeo.Left //| zgeo.HorExpand
-			if fieldView.Vertical {
-				a |= zgeo.Top
-			} else {
-				a |= zgeo.VertCenter
-			}
-
-			fieldView.buildStack(f.ID, a, zgeo.Size{}, true, 5)
-			if !f.IsStatic() && !single {
-				label := makeCircledLabelButton("–", f)
-				fieldView.Add(zgeo.CenterLeft, label)
-				index := n
-				label.SetPressedHandler(func() {
-					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-					zslice.RemoveAt(val.Addr().Interface(), index)
-					// zlog.Info("newlen:", index, val.Len())
-					v.updateSliceValue(structure, stack, vertical, f, true)
-				})
-			}
-			stack.Add(zgeo.TopLeft|zgeo.HorExpand, fieldView)
-		}
-		collapse := single && n != selectedIndex
-		stack.CollapseChild(view, collapse, false)
-	}
-	if single {
-		zlog.Assert(!f.IsStatic())
-		bar = zui.StackViewHor(f.ID + ".bar")
-		stack.Add(zgeo.TopLeft|zgeo.HorExpand, bar)
-	}
-	if !f.IsStatic() {
-		label := makeCircledLabelButton("+", f)
-		label.SetPressedHandler(func() {
-			val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-			a := reflect.New(val.Type().Elem()).Elem()
-			nv := reflect.Append(val, a)
-			if fieldView != nil {
-				fieldView.structure = nv.Interface()
-			}
-			val.Set(nv)
-			a = val.Index(val.Len() - 1) // we re-set a, as it is now a new value at the end of slice
-			if single {
-				v.changeNamedSelectionIndex(val.Len()-1, f)
-			}
-			// fmt.Printf("SLICER + Pressed: %p %p\n", val.Index(val.Len()-1).Addr().Interface(), a.Addr().Interface())
-			fhItem, _ := a.Addr().Interface().(ActionHandler)
-			if fhItem != nil {
-				fhItem.HandleAction(f, NewStructAction, nil)
-			}
-			v.updateSliceValue(structure, stack, vertical, f, true)
-			//			stack.CustomView.PressedHandler()()
-		})
-		if bar != nil {
-			bar.Add(zgeo.CenterRight, label)
-		} else {
-			stack.Add(zgeo.TopLeft, label)
-		}
-	}
-	if single {
-		label := makeCircledLabelButton("–", f)
-		bar.Add(zgeo.CenterRight, label)
-		label.SetPressedHandler(func() {
-			zui.AlertAsk("Delete this entry?", func(ok bool) {
-				if ok {
-					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-					zslice.RemoveAt(val.Addr().Interface(), selectedIndex)
-					// zlog.Info("newlen:", index, val.Len())
-					v.updateSliceValue(structure, stack, vertical, f, true)
-				}
-			})
-		})
-		label.SetUsable(sliceVal.Len() > 0)
-		// zlog.Info("Make Slice thing:", key, selectedIndex, val.Len())
-
-		label = makeCircledLabelButton("⇦", f)
-		bar.Add(zgeo.CenterLeft, label)
-		label.SetPressedHandler(func() {
-			v.changeNamedSelectionIndex(selectedIndex-1, f)
-			v.updateSliceValue(structure, stack, vertical, f, false)
-		})
-		label.SetUsable(selectedIndex > 0)
-
-		str := "0"
-		if sliceVal.Len() > 0 {
-			str = fmt.Sprintf("%d of %d", selectedIndex+1, sliceVal.Len())
-		}
-		label = zui.LabelNew(str)
-		label.SetColor(zgeo.ColorNewGray(0, 1))
-		f.SetFont(label, nil)
-		bar.Add(zgeo.CenterLeft, label)
-
-		label = makeCircledLabelButton("⇨", f)
-		bar.Add(zgeo.CenterLeft, label)
-		label.SetPressedHandler(func() {
-			v.changeNamedSelectionIndex(selectedIndex+1, f)
-			v.updateSliceValue(structure, stack, vertical, f, false)
-		})
-		label.SetUsable(selectedIndex < sliceVal.Len()-1)
-	}
-	return stack
-}
-
 // func updateStackFromActionFieldHandlerSlice(view zui.View, item *zreflect.Item, f *Field) bool {
 // 	var updated bool
 // 	ct, _ := view.(zui.ContainerType)
@@ -873,7 +650,7 @@ func makeFlagStack(flags zreflect.Item, f *Field) zui.View {
 
 func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 	stack := view.(*zui.StackView)
-	zlog.Info("zfields.updateFlagStack", Name(f))
+	// zlog.Info("zfields.updateFlagStack", Name(f))
 	bso := flags.Interface.(zbool.BitsetItemsOwner)
 	bitset := bso.GetBitsetItems()
 	n := flags.Value.Int()
@@ -934,7 +711,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		}
 		if view != nil {
 		} else if f.LocalEnum != "" {
-			ei := findLocalField(&children, f.LocalEnum)
+			ei := findLocalFieldWithID(&children, f.LocalEnum)
 			if !zlog.ErrorIf(ei == nil, f.Name, f.LocalEnum) {
 				getter, _ := ei.Interface.(zdict.ItemsGetter)
 				if !zlog.ErrorIf(getter == nil, "field isn't enum, not ItemGetter type", f.Name, f.LocalEnum) {
@@ -956,7 +733,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		} else if f.Enum != "" {
 			// fmt.Println("make enum:", f.Name)
 			enum, _ := fieldEnums[f.Enum]
-			zlog.Assert(enum != nil)
+			zlog.Assert(enum != nil, f.Enum)
 			view = v.makeMenu(item, f, enum)
 			exp = zgeo.AlignmentNone
 		} else {
@@ -1063,7 +840,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		var tipField, tip string
 		if zstr.HasPrefix(f.Tooltip, ".", &tipField) {
 			for _, ei := range children {
-				if ei.FieldName == tipField {
+				if fieldNameToID(ei.FieldName) == tipField {
 					tip = fmt.Sprint(ei.Interface)
 					break
 				}
