@@ -55,6 +55,7 @@ const (
 	flagIsPassword
 	flagExpandFromMinSize
 	flagIsDuration
+	flagIsOpaque
 )
 
 const (
@@ -263,6 +264,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			f.IsGroup = true
 		case "fixed":
 			f.Flags |= flagIsFixed
+		case "opaque":
+			f.Flags |= flagIsOpaque
 		case "shadow":
 			for _, part := range strings.Split(val, "|") {
 				got := false

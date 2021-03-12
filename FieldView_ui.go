@@ -566,6 +566,7 @@ func (v *FieldView) makeImage(item zreflect.Item, f *Field) zui.View {
 	iv := zui.ImageViewNew(nil, "", f.Size)
 	iv.SetMinSize(f.Size)
 	iv.SetObjectName(f.ID)
+	iv.OpaqueDraw = (f.Flags&flagIsOpaque != 0)
 	return iv
 }
 
@@ -664,7 +665,7 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 				iv := zui.ImageViewNew(nil, path, zgeo.Size{16, 16})
 				iv.SetObjectName(name) // very important as we above find it in stack
 				iv.SetMinSize(zgeo.Size{16, 16})
-				stack.Add(zgeo.Center, iv)
+				stack.Add(iv, zgeo.Center)
 				if stack.Presented {
 					stack.ArrangeChildren(nil)
 				}

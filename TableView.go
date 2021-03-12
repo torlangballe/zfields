@@ -109,7 +109,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	if header {
 		v.Header = zui.HeaderViewNew(name + ".header")
-		v.Add(zgeo.Left|zgeo.Top|zgeo.HorExpand, v.Header)
+		v.Add(v.Header, zgeo.Left|zgeo.Top|zgeo.HorExpand)
 		v.Header.SortingPressed = func() {
 			val := tableGetSliceRValFromPointer(structData)
 			nval := reflect.MakeSlice(val.Type(), val.Len(), val.Len())
@@ -121,7 +121,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 			v.UpdateWithOldNewSlice(slice, nslice)
 		}
 	}
-	v.List = zui.ListViewNew(v.ObjectName() + ".list")
+	v.List = zui.ListViewNew(v.ObjectName() + ".list", nil)
 	v.List.SetMinSize(zgeo.Size{50, 50})
 	v.List.RowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
@@ -129,7 +129,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	v.List.HighlightColor = DefaultTableRowHoverColor
 	v.List.HoverHighlight = true
-	v.Add(zgeo.Left|zgeo.Top|zgeo.Expand, v.List)
+	v.Add(v.List, zgeo.Left|zgeo.Top|zgeo.Expand)
 	if !rval.IsNil() {
 		v.List.RowUpdater = func(i int, edited bool) {
 			v.FlushDataToRow(i)
@@ -161,17 +161,6 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.List.GetRowCount = func() int {
 		return v.GetRowCount()
 	}
-
-	// v.handleUpdate = func(edited bool, i int) {
-	// 	rowStruct := v.GetRowData(i)
-	// 	showError := true
-	// 	 zlog.Info("table handleUpdate:", i, edited)
-	// 	rowStack, _ := v.List.GetVisibleRowViewFromIndex(i).(*StackView)
-	// 	if rowStack != nil {
-	// 		FieldsCopyBack(rowStruct, v.fields, rowStack, showError)
-	// 	}
-	// 	v.List.UpdateRow(i, edited)
-	// }
 	return v
 }
 

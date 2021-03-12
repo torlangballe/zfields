@@ -96,7 +96,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		label.SetColor(zgeo.ColorNewGray(0, 1))
 		font := zui.FontNice(zui.FontDefaultSize, zui.FontStyleBoldItalic)
 		f.SetFont(label, font)
-		stack.Add(zgeo.TopLeft, label)
+		stack.Add(label, zgeo.TopLeft)
 	}
 	for n := 0; n < sliceVal.Len(); n++ {
 		var view zui.View
@@ -104,7 +104,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		h, _ := nval.Interface().(ActionFieldHandler)
 		if h != nil {
 			if h.HandleFieldAction(f, CreateFieldViewAction, &view) {
-				stack.Add(zgeo.TopLeft, view)
+				stack.Add(view, zgeo.TopLeft)
 			}
 		}
 		if view == nil {
@@ -129,7 +129,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			if !f.IsStatic() && !single {
 				trash := makeCircledTrashButton()
 				trash.SetColor(zgeo.ColorNew(1, 0.8, 0.8, 1))
-				fieldView.Add(zgeo.CenterLeft, trash)
+				fieldView.Add(trash, zgeo.CenterLeft)
 				index := n
 				trash.SetPressedHandler(func() {
 					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
@@ -138,7 +138,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 					v.updateSliceValue(structure, stack, vertical, f, true)
 				})
 			}
-			stack.Add(zgeo.TopLeft|zgeo.HorExpand, fieldView)
+			stack.Add(fieldView, zgeo.TopLeft|zgeo.HorExpand)
 		}
 		collapse := single && n != selectedIndex
 		stack.CollapseChild(view, collapse, false)
@@ -146,7 +146,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	if single {
 		zlog.Assert(!f.IsStatic())
 		bar = zui.StackViewHor(f.ID + ".bar")
-		stack.Add(zgeo.TopLeft|zgeo.HorExpand, bar)
+		stack.Add(bar, zgeo.TopLeft|zgeo.HorExpand)
 	}
 	if !f.IsStatic() {
 		plus := makeCircledImageButton("plus")
@@ -171,14 +171,14 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			//			stack.CustomView.PressedHandler()()
 		})
 		if bar != nil {
-			bar.Add(zgeo.CenterRight, plus)
+			bar.Add(plus, zgeo.CenterRight)
 		} else {
-			stack.Add(zgeo.TopLeft, plus)
+			stack.Add(plus, zgeo.TopLeft)
 		}
 	}
 	if single {
 		shape := makeCircledTrashButton()
-		bar.Add(zgeo.CenterRight, shape)
+		bar.Add(shape, zgeo.CenterRight)
 		shape.SetPressedHandler(func() {
 			zui.AlertAsk("Delete this entry?", func(ok bool) {
 				if ok {
@@ -193,7 +193,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		// zlog.Info("Make Slice thing:", key, selectedIndex, val.Len())
 
 		shape = makeCircledTextButton("⇦", f)
-		bar.Add(zgeo.CenterLeft, shape)
+		bar.Add(shape, zgeo.CenterLeft)
 		shape.SetPressedHandler(func() {
 			v.changeNamedSelectionIndex(selectedIndex-1, f)
 			v.updateSliceValue(structure, stack, vertical, f, false)
@@ -207,10 +207,10 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		label := zui.LabelNew(str)
 		label.SetColor(zgeo.ColorNewGray(0, 1))
 		f.SetFont(label, nil)
-		bar.Add(zgeo.CenterLeft, label)
+		bar.Add(label, zgeo.CenterLeft)
 
 		shape = makeCircledTextButton("⇨", f)
-		bar.Add(zgeo.CenterLeft, shape)
+		bar.Add(shape, zgeo.CenterLeft)
 		shape.SetPressedHandler(func() {
 			v.changeNamedSelectionIndex(selectedIndex+1, f)
 			v.updateSliceValue(structure, stack, vertical, f, false)
