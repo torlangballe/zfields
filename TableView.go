@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/torlangballe/zui"
+	"github.com/torlangballe/zutil/zdevice"
 	"github.com/torlangballe/zutil/zgeo"
 	"github.com/torlangballe/zutil/zlog"
 	"github.com/torlangballe/zutil/zreflect"
 )
 
-var DefaultTableRowHoverColor = zgeo.ColorNew(0.7, 0.7, 1, 1)
+var TableDefaultRowHoverColor = zgeo.ColorNew(0.7, 0.7, 1, 1)
+var TableDefaultUseHeader = zdevice.IsDesktop()
 
 type TableView struct {
 	zui.StackView
@@ -121,13 +123,13 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 			v.UpdateWithOldNewSlice(slice, nslice)
 		}
 	}
-	v.List = zui.ListViewNew(v.ObjectName() + ".list", nil)
+	v.List = zui.ListViewNew(v.ObjectName()+".list", nil)
 	v.List.SetMinSize(zgeo.Size{50, 50})
 	v.List.RowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
 		// v.ArrangeChildren(nil)
 	}
-	v.List.HighlightColor = DefaultTableRowHoverColor
+	v.List.HighlightColor = TableDefaultRowHoverColor
 	v.List.HoverHighlight = true
 	v.Add(v.List, zgeo.Left|zgeo.Top|zgeo.Expand)
 	if !rval.IsNil() {

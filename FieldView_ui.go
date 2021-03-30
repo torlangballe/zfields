@@ -83,7 +83,7 @@ func (v *FieldView) findNamedViewOrInLabelized(name string) zui.View {
 		}
 		if strings.HasPrefix(n, "$labelize.") {
 			s := c.(*zui.StackView)
-			v := s.FindViewWithName(name, false)
+			v, _ := s.FindViewWithName(name, false)
 			if v != nil {
 				return v
 			}
@@ -192,7 +192,7 @@ func (v *FieldView) Update() {
 			to.SetText(str)
 
 		case zreflect.KindStruct:
-			_, got := item.Interface.(zui.UIStringer)
+			_, got := item.Interface.(UIStringer)
 			if got {
 				break
 			}
@@ -414,7 +414,19 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 		if isImage {
 			shape = zui.ShapeViewTypeNone
 		}
-		menu := zui.MenuedShapeViewNew(shape, zgeo.Size{20, 20}, f.ID, items, vals, f.IsStatic(), multi)
+		var mItems []zui.MenuedItem
+		for i := range items {
+			var m zui.MenuedItem
+			for j := range vals {
+				if reflect.DeepEqual(items[i], vals[j]) {
+					m.Selected = true
+					break
+				}
+			}
+			m.Item = items[i]
+			mItems = append(mItems, m)
+		}
+		menu := zui.MenuedShapeViewNew(shape, zgeo.Size{20, 20}, f.ID, mItems, f.IsStatic(), multi)
 		if isImage {
 			menu.SetImage(nil, f.ImageFixedPath, nil)
 			menu.ImageAlign = zgeo.Center | zgeo.Proportional
@@ -534,7 +546,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 	f.SetFont(tv, nil)
 	tv.UpdateSecs = f.UpdateSecs
 	tv.SetPlaceholder(f.Placeholder)
-	tv.SetChangedHandler(func(view zui.View) {
+	tv.SetChangedHandler(func() {
 		v.toDataItem(f, tv, true)
 		// zlog.Info("Changed text1:", structure)
 		if v.handleUpdate != nil {
@@ -542,10 +554,10 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 			v.handleUpdate(edited)
 		}
 		// fmt.Printf("Changed text: %p v:%p %+v\n", v.structure, v, v.structure)
-		view = zui.View(tv)
+		view := zui.View(tv)
 		v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
 	})
-	tv.SetKeyHandler(func(view zui.View, key zui.KeyboardKey, mods zui.KeyboardModifier) {
+	tv.SetKeyHandler(func(key zui.KeyboardKey, mods zui.KeyboardModifier) {
 		// zlog.Info("keyup!")
 	})
 	return tv
@@ -657,7 +669,7 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 	n := flags.Value.Int()
 	for _, bs := range bitset {
 		name := bs.Name
-		vf := stack.FindViewWithName(name, false)
+		vf, _ := stack.FindViewWithName(name, false)
 		if n&bs.Mask != 0 {
 			if vf == nil {
 				path := "images/" + f.ID + "/" + name + ".png"
@@ -740,7 +752,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		} else {
 			switch f.Kind {
 			case zreflect.KindStruct:
-				_, got := item.Interface.(zui.UIStringer)
+				_, got := item.Interface.(UIStringer)
 				// zlog.Info("make stringer?:", f.Name, got)
 				if got && f.IsStatic() {
 					view = v.makeText(item, f)

@@ -25,6 +25,11 @@ import (
 
 type ActionType string
 
+// UIStringer defines a special string return function used to show a complex type as a string in fields/tables etc, instead of the complex type. String() would kick in too often
+type UIStringer interface {
+	ZUIString() string
+}
+
 const (
 	DataChangedAction     ActionType = "changed"     // called when value changed, typically programatically or edited
 	EditedAction          ActionType = "edited"      // called when value edited by user, DataChangedAction will also be called
