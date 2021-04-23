@@ -73,7 +73,7 @@ func (v *FieldView) changeNamedSelectionIndex(i int, f *Field) {
 
 func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f *Field) zui.View {
 	sliceVal, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-	// fmt.Printf("buildStackFromSlice: %s %v %v %+v\n", f.FieldName, reflect.ValueOf(structure).Kind(), reflect.ValueOf(structure).Type(), structure)
+	// zlog.Info("buildStackFromSlice:", f.FieldName, reflect.ValueOf(structure).Kind(), f.Spacing)
 	var bar *zui.StackView
 	stack := zui.StackViewNew(vertical, f.ID)
 	if f != nil && f.Spacing != 0 {
@@ -104,7 +104,12 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		h, _ := nval.Interface().(ActionFieldHandler)
 		if h != nil {
 			if h.HandleFieldAction(f, CreateFieldViewAction, &view) {
-				stack.Add(view, zgeo.TopLeft)
+				a := zgeo.Center
+				if vertical {
+					a = zgeo.TopLeft
+				}
+				stack.Add(view, a)
+				// fmt.Println("buildStackFromSlice element:", f.FieldName)
 			}
 		}
 		if view == nil {

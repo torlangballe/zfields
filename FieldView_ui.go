@@ -382,7 +382,7 @@ func (v *FieldView) findFieldWithID(id string) *Field {
 	return nil
 }
 
-func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.ButtonView {
+func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.ImageButtonView {
 	// zlog.Info("makeButton:", f.Name, f.Height)
 	format := f.Format
 	if format == "" {
@@ -396,7 +396,7 @@ func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.ButtonView {
 	if f.Title != "" {
 		name = f.Title
 	}
-	button := zui.ButtonViewNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
+	button := zui.ImageButtonViewNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
 	button.SetTextColor(zgeo.ColorBlack)
 	button.TextXMargin = 0
 	return button
@@ -430,6 +430,7 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 		if isImage {
 			menu.SetImage(nil, f.ImageFixedPath, nil)
 			menu.ImageAlign = zgeo.Center | zgeo.Proportional
+			// zlog.Info("FV Menued:", f.ID, f.Size)
 			menu.ImageMaxSize = f.Size
 		} else {
 			menu.SetPillStyle()
@@ -438,14 +439,20 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 			}
 		}
 		view = menu
+		// zlog.Info("Make Menu Format", f.Name, f.Format)
 		if f.Format != "" {
-			// zlog.Info("Make Menu Format", f.Name, f.Format)
-			if f.Format == "%d" {
+			if f.Format == "-" {
 				menu.GetTitle = func(icount int) string {
+					return ""
+				}
+			} else if f.Format == "%d" {
+				menu.GetTitle = func(icount int) string {
+					// zlog.Info("fv menu gettitle2:", f.FieldName, f.Format, icount)
 					return strconv.Itoa(icount)
 				}
 			} else {
 				menu.GetTitle = func(icount int) string {
+					// zlog.Info("fv menu gettitle:", f.FieldName, f.Format, icount)
 					return zwords.PluralWord(f.Format, float64(icount), "", "", 0)
 				}
 			}
@@ -455,7 +462,7 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 			if menu.IsStatic {
 				sel := menu.SelectedItem()
 				kind := reflect.ValueOf(sel.Value).Kind()
-				zlog.Info("action pressed", kind, sel.Name, "val:", sel.Value)
+				// zlog.Info("action pressed", kind, sel.Name, "val:", sel.Value)
 				if kind != reflect.Ptr && kind != reflect.Struct {
 					nf := *f
 					nf.ActionValue = sel.Value
@@ -542,7 +549,11 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 		return label
 	}
 	var style zui.TextViewStyle
-	tv := zui.TextViewNew(str, style, f.Columns, f.Rows)
+	cols := f.Columns
+	if cols == 0 {
+		cols = 20
+	}
+	tv := zui.TextViewNew(str, style, cols, f.Rows)
 	f.SetFont(tv, nil)
 	tv.UpdateSecs = f.UpdateSecs
 	tv.SetPlaceholder(f.Placeholder)
@@ -560,6 +571,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field) zui.View {
 	tv.SetKeyHandler(func(key zui.KeyboardKey, mods zui.KeyboardModifier) {
 		// zlog.Info("keyup!")
 	})
+	// zlog.Info("FV makeText:", f.FieldName, tv.MinWidth, tv.Columns)
 	return tv
 }
 
@@ -620,7 +632,7 @@ func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 		tooBig := true
 		if !t.IsZero() {
 			since := time.Since(t)
-			str, tooBig = ztime.GetDurationString(since, f.Flags&flagHasSeconds != 0, f.Flags&flagHasMinutes != 0, f.Flags&flagHasHours != 0, f.Columns)
+			str, tooBig = ztime.GetDurationString(since, f.Flags&flagHasSeconds != 0, f.Flags&flagHasMinutes != 0, f.Flags&flagHasHours != 0, f.FractionDecimals)
 		}
 		if tooBig {
 			label.SetText("●")
@@ -809,7 +821,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					view = menu
 					break
 				}
-				//				zlog.Info("Make slice:", item.Address, item.Value.CanAddr(), item.Value.CanSet(), reflect.ValueOf(item.Value.Interface()).CanAddr())
+				// zlog.Info("Make slice:", f.FieldName, item.Address, item.Value.CanAddr(), item.Value.CanSet(), reflect.ValueOf(item.Value.Interface()).CanAddr())
 				exp = zgeo.Expand
 				view = v.buildStackFromSlice(v.structure, v.Vertical, f)
 				break
@@ -820,9 +832,12 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 
 			case zreflect.KindTime:
 				view = v.makeText(item, f)
-				if f.Flags&flagIsDuration != 0 {
+				if f.Flags&flagIsDuration != 0 && f.IsStatic() {
+					label := view.(*zui.Label)
+					label.Columns = f.Columns
 					timer := ztimer.RepeatNow(1, func() bool {
-						v.updateSinceTime(view.(*zui.Label), f)
+						label := view.(*zui.Label)
+						v.updateSinceTime(label, f)
 						return true
 					})
 					zui.ViewGetNative(view).AddStopper(timer.Stop)
@@ -872,6 +887,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		if len(f.Colors) != 0 {
 			view.SetColor(zgeo.ColorFromString(f.Colors[0]))
 		}
+		v.callActionHandlerFunc(f, CreatedViewAction, item.Interface, &view)
 		cell := &zui.ContainerViewCell{}
 		if labelizeWidth != 0 {
 			var lstack *zui.StackView
@@ -889,14 +905,10 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 			def &= ^all
 		}
 		cell.Alignment = def | exp | f.Alignment
-		// zlog.Info("field align2:", f.Alignment, f.Name, def, f.Flags&flagIsButton, exp, cell.Alignment, int(cell.Alignment))
 		if useMinWidth {
 			cell.MinSize.W = f.MinWidth
 		}
 		cell.MaxSize.W = f.MaxWidth
-		if cell.MinSize.W != 0 && (j == 0 || j == len(children)-1) {
-			cell.MinSize.W += inset
-		}
 		if f.Flags&flagExpandFromMinSize != 0 {
 			cell.ExpandFromMinSize = true
 		}
@@ -935,7 +947,7 @@ func (v *FieldView) toDataItem(f *Field, view zui.View, showError bool) error {
 	case zreflect.KindBool:
 		bv, _ := view.(*zui.CheckBox)
 		if bv == nil {
-			panic("Should be switch")
+			panic("Should be checkbox")
 		}
 		b, _ := item.Address.(*bool)
 		if b != nil {

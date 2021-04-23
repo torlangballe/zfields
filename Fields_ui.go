@@ -38,6 +38,7 @@ const (
 	LongPressedAction     ActionType = "longpressed" // called when view is long-pressed, view is valid
 	NewStructAction       ActionType = "newstruct"   // called when new stucture is created, for initializing. View may  be nil
 	CreateFieldViewAction ActionType = "createview"  // called to create view, view is pointer to view and is returned in it
+	CreatedViewAction     ActionType = "createdview" // called to create view, view is pointer to view and is returned in it
 )
 
 const (
@@ -108,6 +109,7 @@ type Field struct {
 	SortSmallFirst       zbool.BoolInd
 	SortPriority         int
 	IsGroup              bool
+	FractionDecimals     int
 }
 
 type ActionHandler interface {
@@ -255,6 +257,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if flag || val == "" {
 				f.Flags |= flagIsStatic
 			}
+		case "fracts":
+			f.FractionDecimals = int(n)
 		case "secs":
 			f.Flags |= flagHasSeconds
 		case "mins":
@@ -426,9 +430,10 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	case zreflect.KindInt:
 		if item.TypeName != "BoolInd" {
 			if item.Package == "time" && item.TypeName == "Duration" {
-				if f.Flags&flagTimeFlags == 0 {
+				if f.Flags&flagTimeFlags == 0 { // if no flags set, set default h,m,s
 					f.Flags |= flagTimeFlags
 				}
+				setDurationColumns(f)
 			}
 			if f.Enum == "" && f.LocalEnum == "" {
 				if f.MinWidth == 0 {
@@ -451,7 +456,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			zfloat.Maximize(&f.MinWidth, f.HeaderSize.W)
 			zfloat.Maximize(&f.MaxWidth, f.HeaderSize.W)
 		}
-		if f.MinWidth == 0 && f.Flags&flagIsButton == 0 {
+		if f.MinWidth == 0 && f.Flags&flagIsButton == 0 && f.Enum == "" && f.LocalEnum == "" {
 			f.MinWidth = 20
 		}
 	case zreflect.KindTime:
@@ -461,33 +466,21 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		if f.Flags&(flagTimeFlags|flagDateFlags) == 0 {
 			f.Flags |= flagTimeFlags | flagDateFlags
 		}
-		dig2 := 20.0
-		f.MaxWidth = 24
+		if f.Flags&flagIsDuration != 0 {
+			setDurationColumns(f)
+		}
+		f.MaxWidth = 40
 		if f.MinWidth == 0 {
-			if f.Flags&flagHasSeconds != 0 {
-				f.MaxWidth += dig2
-			}
-			if f.Flags&flagHasMinutes != 0 {
-				f.MaxWidth += dig2
-
-			}
-			if f.Flags&flagHasHours != 0 {
-				f.MaxWidth += dig2
-
-			}
 			if f.Flags&flagHasDays != 0 {
-				f.MaxWidth += dig2
-
+				f.Columns += 3
 			}
 			if f.Flags&flagHasMonths != 0 {
-				f.MaxWidth += dig2
-
+				f.Columns += 3
 			}
 			if f.Flags&flagHasYears != 0 {
-				f.MaxWidth += dig2 * 2
+				f.Columns += 3
 			}
-			f.MinWidth = f.MaxWidth
-			if f.MinWidth == 0 {
+			if f.MinWidth == 0 && f.Columns == 0 {
 				f.MinWidth = 80
 			}
 		}
@@ -502,7 +495,23 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		}
 	}
 	callActionHandlerFunc(structure, f, SetupFieldAction, item.Interface, nil) // need to use v.structure here, since i == -1
+	// zlog.Info("Field:", f.ID, f.MinWidth, f.Size, f.MaxWidth)
 	return true
+}
+
+func setDurationColumns(f *Field) {
+	if f.Flags&flagHasMinutes != 0 {
+		f.Columns += 3
+	}
+	if f.Flags&flagHasSeconds != 0 {
+		f.Columns += 3
+	}
+	if f.Flags&flagHasHours != 0 {
+		f.Columns += 3
+	}
+	if f.Flags&flagHasDays != 0 {
+		f.Columns += 3
+	}
 }
 
 var fieldEnums = map[string]zdict.Items{}

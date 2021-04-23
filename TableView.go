@@ -13,7 +13,7 @@ import (
 	"github.com/torlangballe/zutil/zreflect"
 )
 
-var TableDefaultRowHoverColor = zgeo.ColorNew(0.7, 0.7, 1, 1)
+var TableDefaultRowHoverColor = zgeo.ColorNew(0.8, 0.9, 1, 1)
 var TableDefaultUseHeader = zdevice.IsDesktop()
 
 type TableView struct {
@@ -58,7 +58,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v := &TableView{}
 	v.StackView.Init(v, true, name)
 	v.SetSpacing(0)
-	v.ColumnMargin = 3
+	v.ColumnMargin = 5
 	v.RowInset = 7
 	v.HeaderHeight = 28
 	v.DefaultHeight = 34
@@ -208,7 +208,7 @@ func (v *TableView) ReadyToShow(beforeWindow bool) {
 			count := v.GetRowCount()
 			for i := 0; i < count; i++ {
 				if getter.GetID(i) == sid {
-					v.List.Select(i, false)
+					v.List.Select(i, false, false)
 					break
 				}
 			}
@@ -255,6 +255,7 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	data := v.GetRowData(i)
 	// zlog.Info("createRow2:", time.Since(start))
 	fv := FieldViewNew(rowID, data, 0)
+	fv.NewStack = true
 	fv.Vertical = false
 	fv.fields = v.fields
 	fv.SetSpacing(0)
@@ -263,7 +264,7 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	//	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
 	// zlog.Info("createRow4:", time.Since(start))
-	fv.buildStack(name, zgeo.Center, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset)
+	fv.buildStack(name, zgeo.CenterLeft, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset)
 	// zlog.Info("createRow5:", time.Since(start))
 	// edited := false
 	// v.handleUpdate(edited, i)
