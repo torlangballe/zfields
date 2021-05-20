@@ -15,6 +15,7 @@ import (
 
 var TableDefaultRowHoverColor = zgeo.ColorNew(0.8, 0.9, 1, 1)
 var TableDefaultUseHeader = zdevice.IsDesktop()
+var TableDefaultRowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
 
 type TableView struct {
 	zui.StackView
@@ -61,7 +62,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.ColumnMargin = 5
 	v.RowInset = 7
 	v.HeaderHeight = 28
-	v.DefaultHeight = 34
+	v.DefaultHeight = 30
 	v.structure = structData
 
 	var structure interface{}
@@ -125,7 +126,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	v.List = zui.ListViewNew(v.ObjectName()+".list", nil)
 	v.List.SetMinSize(zgeo.Size{50, 50})
-	v.List.RowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
+	v.List.RowColors = TableDefaultRowColors
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
 		// v.ArrangeChildren(nil)
 	}
@@ -144,9 +145,6 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 			// }
 		}
 	}
-	v.GetRowHeight = func(i int) float64 { // default height
-		return 50
-	}
 	v.List.CreateRow = func(rowSize zgeo.Size, i int) zui.View {
 		// start := time.Now()
 		getter := tableGetSliceRValFromPointer(structData).Interface().(zui.ListViewIDGetter)
@@ -154,11 +152,11 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 		r := v.createRow(rowSize, rowID, i)
 		return r
 	}
-	v.List.GetRowHeight = func(i int) float64 {
-		return v.GetRowHeight(i)
-	}
 	v.GetRowHeight = func(i int) float64 {
 		return v.DefaultHeight
+	}
+	v.List.GetRowHeight = func(i int) float64 {
+		return v.GetRowHeight(i)
 	}
 	v.List.GetRowCount = func() int {
 		return v.GetRowCount()

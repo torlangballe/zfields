@@ -62,6 +62,7 @@ const (
 	flagExpandFromMinSize
 	flagIsDuration
 	flagIsOpaque
+	// flagAllowNil
 )
 
 const (
@@ -209,7 +210,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			// zlog.Info("ALIGN:", f.Name, val, a)
 		case "nosize":
 			f.Flags |= flagExpandFromMinSize
-
+		// case "cannil"
+		// f.Flags |= flagAllowNil
 		case "justify":
 			if val == "" {
 				f.Justify = f.Alignment

@@ -165,6 +165,7 @@ func (v *FieldView) Update() {
 			// fmt.Printf("updateSliceFieldView: %s %p %p %v %p\n", v.id, item.Interface, val.Interface(), found, view)
 			updateSliceFieldView(fview, item, f)
 		}
+		updateItemLocalToolTip(f, children, fview)
 
 		switch f.Kind {
 		case zreflect.KindSlice:
@@ -594,28 +595,6 @@ func (v *FieldView) makeImage(item zreflect.Item, f *Field) zui.View {
 	return iv
 }
 
-// func updateStackFromActionFieldHandlerSlice(view zui.View, item *zreflect.Item, f *Field) bool {
-// 	var updated bool
-// 	ct, _ := view.(zui.ContainerType)
-// 	if ct == nil {
-// 		return false
-// 	}
-// 	views := ct.GetChildren()
-// 	for n := 0; n < item.Value.Len(); n++ {
-// 		if len(views) <= n {
-// 			break
-// 		}
-// 		h, _ := item.Value.Index(0).Interface().(ActionFieldHandler)
-// 		if h != nil {
-// 			updated = true
-// 			sview := views[n]
-// 			ah := item.Value.Index(n).Interface().(ActionFieldHandler)
-// 			ah.HandleFieldAction(f, DataChangedAction, &sview)
-// 		}
-// 	}
-// 	return updated
-// }
-
 func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 	sv := reflect.ValueOf(v.structure)
 	// zlog.Info("\n\nNew struct search for children?:", f.FieldName, sv.Kind(), sv.CanAddr(), v.structure != nil)
@@ -752,7 +731,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					}
 					view = menu
 					// mt := view.(zui.MenuType)
-					//!!					mt.SelectWithValue(item.Interface, true)
+					//!!					mt.SelectWithValue(item.Interface)
 				}
 			}
 		} else if f.Enum != "" {
@@ -821,9 +800,17 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 					view = menu
 					break
 				}
-				// zlog.Info("Make slice:", f.FieldName, item.Address, item.Value.CanAddr(), item.Value.CanSet(), reflect.ValueOf(item.Value.Interface()).CanAddr())
-				exp = zgeo.Expand
-				view = v.buildStackFromSlice(v.structure, v.Vertical, f)
+				//				zlog.Info("Make slice:", v.ObjectName(), f.FieldName, , labelizeWidth)
+				if f.Alignment != zgeo.AlignmentNone {
+					exp = zgeo.Expand
+				} else {
+					exp = zgeo.AlignmentNone
+				}
+				vert := v.Vertical
+				if labelizeWidth != 0 {
+					vert = false
+				}
+				view = v.buildStackFromSlice(v.structure, vert, f)
 				break
 				// 	// view = createStackFromActionFieldHandlerSlice(&item, f)
 				// }
@@ -865,20 +852,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 			})
 
 		}
-		var tipField, tip string
-		if zstr.HasPrefix(f.Tooltip, ".", &tipField) {
-			for _, ei := range children {
-				if fieldNameToID(ei.FieldName) == tipField {
-					tip = fmt.Sprint(ei.Interface)
-					break
-				}
-			}
-		} else if f.Tooltip != "" {
-			tip = f.Tooltip
-		}
-		if tip != "" {
-			zui.ViewGetNative(view).SetToolTip(tip)
-		}
+		updateItemLocalToolTip(f, children, view)
 		if !f.Shadow.Delta.IsNull() {
 			nv := zui.ViewGetNative(view)
 			nv.SetDropShadow(f.Shadow)
@@ -897,6 +871,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 			}
 			_, lstack, cell = zui.Labelize(view, title, labelizeWidth)
 			v.AddView(lstack, zgeo.HorExpand|zgeo.Left|zgeo.Top)
+			zlog.Info("LABS:", v.ObjectName(), view.ObjectName(), defaultAlign, exp, f.Alignment)
 		}
 		cell.Margin = cellMargin
 		def := defaultAlign
@@ -917,6 +892,29 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 			cell.View = view
 			v.AddCell(*cell, -1)
 		}
+	}
+}
+
+func updateItemLocalToolTip(f *Field, children []zreflect.Item, view zui.View) {
+	var tipField, tip string
+	found := false
+	if zstr.HasPrefix(f.Tooltip, ".", &tipField) {
+		for _, ei := range children {
+			// zlog.Info("updateItemLocalToolTip:", fieldNameToID(ei.FieldName), tipField)
+			if fieldNameToID(ei.FieldName) == tipField {
+				tip = fmt.Sprint(ei.Interface)
+				found = true
+				break
+			}
+		}
+		if !found { // can't use tip == "" to check, since field might just be empty
+			zlog.Error(nil, "updateItemLocalToolTip: no local field for tip", f.Name, tipField)
+		}
+	} else if f.Tooltip != "" {
+		tip = f.Tooltip
+	}
+	if tip != "" {
+		zui.ViewGetNative(view).SetToolTip(tip)
 	}
 }
 
