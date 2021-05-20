@@ -13,7 +13,7 @@ import (
 	"github.com/torlangballe/zutil/zreflect"
 )
 
-var TableDefaultRowHoverColor = zgeo.ColorNew(0.8, 0.9, 1, 1)
+var TableDefaultRowHoverColor = zgeo.ColorNew(0.8, 0.91, 1, 1)
 var TableDefaultUseHeader = zdevice.IsDesktop()
 var TableDefaultRowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
 
