@@ -253,7 +253,6 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	data := v.GetRowData(i)
 	// zlog.Info("createRow2:", time.Since(start))
 	fv := FieldViewNew(rowID, data, 0)
-	fv.NewStack = true
 	fv.Vertical = false
 	fv.fields = v.fields
 	fv.SetSpacing(0)

@@ -424,6 +424,9 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 					break
 				}
 			}
+			if f.Flags&flagIsActions != 0 {
+				m.IsAction = true
+			}
 			m.Item = items[i]
 			mItems = append(mItems, m)
 		}
@@ -871,7 +874,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 			}
 			_, lstack, cell = zui.Labelize(view, title, labelizeWidth)
 			v.AddView(lstack, zgeo.HorExpand|zgeo.Left|zgeo.Top)
-			zlog.Info("LABS:", v.ObjectName(), view.ObjectName(), defaultAlign, exp, f.Alignment)
+			// zlog.Info("LABS:", v.ObjectName(), view.ObjectName(), defaultAlign, exp, f.Alignment)
 		}
 		cell.Margin = cellMargin
 		def := defaultAlign

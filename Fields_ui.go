@@ -62,6 +62,7 @@ const (
 	flagExpandFromMinSize
 	flagIsDuration
 	flagIsOpaque
+	flagIsActions
 	// flagAllowNil
 )
 
@@ -247,6 +248,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		case "descending":
 			f.SortSmallFirst = zbool.False
 			f.SortPriority = int(n)
+		case "actions":
+			f.Flags |= flagIsActions
 		case "minwidth":
 			if floatErr == nil {
 				f.MinWidth = n
