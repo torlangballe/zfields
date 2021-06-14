@@ -112,6 +112,7 @@ type Field struct {
 	SortPriority         int
 	IsGroup              bool
 	FractionDecimals     int
+	ValueStoreKey        string
 }
 
 type ActionHandler interface {
@@ -258,6 +259,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if floatErr == nil {
 				f.Spacing = n
 			}
+		case "storekey":
+			f.ValueStoreKey = val
 		case "static":
 			if flag || val == "" {
 				f.Flags |= flagIsStatic
@@ -474,7 +477,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		if f.Flags&flagIsDuration != 0 {
 			setDurationColumns(f)
 		}
-		f.MaxWidth = 40
+		// f.MaxWidth = 40
 		if f.MinWidth == 0 {
 			if f.Flags&flagHasDays != 0 {
 				f.Columns += 3
