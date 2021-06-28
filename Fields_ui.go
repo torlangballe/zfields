@@ -502,7 +502,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			}
 		}
 	}
-	callActionHandlerFunc(structure, f, SetupFieldAction, item.Interface, nil) // need to use v.structure here, since i == -1
+	callActionHandlerFunc(structure, f, SetupFieldAction, item.Address, nil) // need to use v.structure here, since i == -1
 	// zlog.Info("Field:", f.ID, f.MinWidth, f.Size, f.MaxWidth)
 	return true
 }

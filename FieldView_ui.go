@@ -76,7 +76,7 @@ func (v *FieldView) Build(update bool) {
 }
 
 func (v *FieldView) findNamedViewOrInLabelized(name string) zui.View {
-	for _, c := range (v.View.(zui.ContainerType)).GetChildren() {
+	for _, c := range (v.View.(zui.ContainerType)).GetChildren(false) {
 		n := c.ObjectName()
 		if n == name {
 			return c
@@ -139,7 +139,7 @@ func (v *FieldView) Update() {
 			}
 			continue
 		}
-		called := v.callActionHandlerFunc(f, DataChangedAction, item.Interface, &fview)
+		called := v.callActionHandlerFunc(f, DataChangedAction, item.Address, &fview)
 		if called {
 			continue
 		}
@@ -327,6 +327,7 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 	}
 
 	if !result {
+		var fieldAddress interface{}
 		if !direct {
 			changed := false
 			sv := reflect.ValueOf(structure)
@@ -341,6 +342,9 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 				if found {
 					changed = true
 					fieldValue = v.Interface()
+					if v.CanAddr() {
+						fieldAddress = v.Addr().Interface()
+					}
 				}
 				// options := zreflect.Options{UnnestAnonymous: true, Recursive: false}
 				// items, err := zreflect.ItterateStruct(s, options)
@@ -364,7 +368,18 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 		}
 		aih, _ := fieldValue.(ActionFieldHandler)
 		// vvv := reflect.ValueOf(fieldValue)
-		// zlog.Info("callActionHandlerFunc bottom:", f.Name, action, result, view, vvv.Kind(), vvv.Type())
+		// if aih == nil {
+		// 	rval := reflect.ValueOf(fieldValue)
+		// 	// zlog.Info("callActionHandlerFunc", f.Name, rval.Kind(), rval.Type(), rval.CanAddr())
+		// 	if rval.Kind() != reflect.Ptr && rval.CanAddr() {
+		// 		inter := rval.Addr().Interface()
+		// 		aih, _ = inter.(ActionFieldHandler)
+		// 	}
+		// }
+		if aih == nil && fieldAddress != nil {
+			aih, _ = fieldAddress.(ActionFieldHandler)
+		}
+		// zlog.Info("callActionHandlerFunc bottom:", f.Name, action, aih != nil, reflect.ValueOf(fieldValue).Type(), reflect.ValueOf(fieldValue).Kind())
 		if aih != nil {
 			result = aih.HandleFieldAction(f, action, view)
 			// zlog.Info("callActionHandlerFunc bottom:", f.Name, action, result, view, aih)
@@ -605,6 +620,7 @@ func (v *FieldView) makeCheckbox(item zreflect.Item, f *Field, b zbool.BoolInd) 
 
 func (v *FieldView) makeImage(item zreflect.Item, f *Field) zui.View {
 	iv := zui.ImageViewNew(nil, "", f.Size)
+	iv.DownsampleImages = true
 	iv.SetMinSize(f.Size)
 	iv.SetObjectName(f.ID)
 	iv.OpaqueDraw = (f.Flags&flagIsOpaque != 0)
@@ -638,7 +654,11 @@ func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 			label.SetColor(zgeo.ColorRed)
 		} else {
 			label.SetText(str)
-			if !v.callActionHandlerFunc(f, DataChangedAction, t, &label.View) {
+			inter := val.Interface()
+			if val.CanAddr() {
+				inter = val.Addr()
+			}
+			if !v.callActionHandlerFunc(f, DataChangedAction, inter, &label.View) {
 				col := zgeo.ColorDefaultForeground
 				if len(f.Colors) != 0 {
 					col = zgeo.ColorFromString(f.Colors[0])
@@ -694,8 +714,9 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 		if n&bs.Mask != 0 {
 			if vf == nil {
 				path := "images/" + f.ID + "/" + name + ".png"
-				// zlog.Info("flag image:", name, path)
 				iv := zui.ImageViewNew(nil, path, zgeo.Size{16, 16})
+				iv.DownsampleImages = true
+				// zlog.Info("flag image:", name, iv.DownsampleImages)
 				iv.SetObjectName(name) // very important as we above find it in stack
 				iv.SetMinSize(zgeo.Size{16, 16})
 				stack.Add(iv, zgeo.Center)
@@ -738,7 +759,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		if f.Flags&flagIsButton != 0 {
 			view = v.makeButton(item, f)
 		} else {
-			v.callActionHandlerFunc(f, CreateFieldViewAction, item.Interface, &view) // this sees if actual ITEM is a field handler
+			v.callActionHandlerFunc(f, CreateFieldViewAction, item.Address, &view) // this sees if actual ITEM is a field handler
 			// if called {
 			// 	zlog.Info("CALLED:", f.Name, view)
 			// }
@@ -896,7 +917,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		if len(f.Colors) != 0 {
 			view.SetColor(zgeo.ColorFromString(f.Colors[0]))
 		}
-		v.callActionHandlerFunc(f, CreatedViewAction, item.Interface, &view)
+		v.callActionHandlerFunc(f, CreatedViewAction, item.Address, &view)
 		cell := &zui.ContainerViewCell{}
 		def := defaultAlign
 		all := zgeo.Left | zgeo.HorCenter | zgeo.Right

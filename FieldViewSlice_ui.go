@@ -51,6 +51,7 @@ func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView
 	ns := zui.ViewGetNative(newStack)
 	ctp := ns.Parent().Parent().View.(zui.ContainerType)
 	ctp.ArrangeChildren(nil)
+	zui.PresentViewCallReady(newStack, false)
 	if sendEdited {
 		fh, _ := structure.(ActionHandler)
 		// zlog.Info("updateSliceValue:", fh != nil, f.Name, fh)
@@ -73,7 +74,7 @@ func (v *FieldView) changeNamedSelectionIndex(i int, f *Field) {
 
 func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f *Field) zui.View {
 	sliceVal, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-	// zlog.Info("buildStackFromSlice:", f.FieldName, vertical, reflect.ValueOf(structure).Kind(), f.Spacing)
+	zlog.Info("buildStackFromSlice:", f.FieldName, vertical, reflect.ValueOf(structure).Kind(), f.Spacing)
 	var bar *zui.StackView
 	stack := zui.StackViewNew(vertical, f.ID)
 	if f != nil && f.Spacing != 0 {
@@ -227,7 +228,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 
 func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
 	// zlog.Info("updateSliceFieldView:", view.ObjectName(), item.FieldName, f.Name)
-	children := (view.(zui.ContainerType)).GetChildren()
+	children := (view.(zui.ContainerType)).GetChildren(false)
 	n := 0
 	subViewCount := len(children)
 	single := (f.Flags&flagIsNamedSelection != 0)
