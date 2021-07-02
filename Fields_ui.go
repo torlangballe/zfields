@@ -171,6 +171,7 @@ func findLocalFieldWithID(children *[]zreflect.Item, name string) *zreflect.Item
 	}
 	return nil
 }
+
 func fieldNameToID(name string) string {
 	return zstr.FirstToLowerWithAcronyms(name)
 }
