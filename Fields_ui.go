@@ -183,7 +183,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	f.Kind = item.Kind
 	f.FieldName = item.FieldName
 	f.Alignment = zgeo.AlignmentNone
-	f.UpdateSecs = 4
+	f.UpdateSecs = -1
 	f.Rows = 1
 	f.SortSmallFirst = zbool.Unknown
 
@@ -487,6 +487,15 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				f.Columns += 3
 			}
 			if f.Flags&flagHasYears != 0 {
+				f.Columns += 3
+			}
+			if f.Flags&flagHasHours != 0 {
+				f.Columns += 3
+			}
+			if f.Flags&flagHasMinutes != 0 {
+				f.Columns += 3
+			}
+			if f.Flags&flagHasSeconds != 0 {
 				f.Columns += 3
 			}
 			if f.MinWidth == 0 && f.Columns == 0 {

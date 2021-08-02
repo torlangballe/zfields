@@ -226,7 +226,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 	return stack
 }
 
-func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
+func updateSliceFieldView(view zui.View, selectedIndex int, item zreflect.Item, f *Field, dontOverwriteEdited bool) {
 	// zlog.Info("updateSliceFieldView:", view.ObjectName(), item.FieldName, f.Name)
 	children := (view.(zui.ContainerType)).GetChildren(false)
 	n := 0
@@ -239,26 +239,28 @@ func updateSliceFieldView(view zui.View, item zreflect.Item, f *Field) {
 	// 	zlog.Info("SLICE VIEW: length changed!!!", subViewCount, item.Value.Len())
 	// }
 	for _, c := range children {
+		// zlog.Info("Update Sub", c.ObjectName())
 		if n >= item.Value.Len() {
 			break
 		}
-		cview := c
+		if single && n != selectedIndex {
+			continue
+		}
 		fv, _ := c.(*FieldView)
-		// zlog.Info("CHILD:", c.ObjectName(), fv != nil, reflect.ValueOf(c).Type())
 		val := item.Value.Index(n)
 		if fv == nil {
 			ah, _ := val.Interface().(ActionFieldHandler)
+			// zlog.Info("Update Sub Slice field fv == nil:", n, ah != nil)
 			if ah != nil {
+				cview := c
 				ah.HandleFieldAction(f, DataChangedAction, &cview)
-				n++
-				continue
 			}
 		} else {
-			// fmt.Printf("Update Sub Slice field: %s %+v\n", fv.ObjectName(), val.Addr().Interface())
-			n++
 			fv.structure = val.Addr().Interface()
-			fv.Update()
+			fv.Update(dontOverwriteEdited)
 		}
+		n++
+		// }
 		// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
 	}
 	// if updateStackFromActionFieldHandlerSlice(view, &item, f) {

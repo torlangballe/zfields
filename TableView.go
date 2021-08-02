@@ -56,6 +56,7 @@ func tableGetSliceRValFromPointer(structure interface{}) reflect.Value {
 }
 
 func TableViewNew(name string, header bool, structData interface{}) *TableView {
+	// zlog.Info("TableViewNew:", name, header)
 	v := &TableView{}
 	v.StackView.Init(v, true, name)
 	v.SetSpacing(0)
@@ -127,6 +128,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.List = zui.ListViewNew(v.ObjectName()+".list", nil)
 	v.List.SetMinSize(zgeo.Size{50, 50})
 	v.List.RowColors = TableDefaultRowColors
+	// v.List.PreCreateRows = 50
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
 		// v.ArrangeChildren(nil)
 	}
@@ -235,12 +237,14 @@ func (v *TableView) FlashRow() {
 }
 
 func (v *TableView) FlushDataToRow(i int) {
+	// zlog.Info("TV: FlushDataToRow:", i)
 	fv, _ := v.List.GetVisibleRowViewFromIndex(i).(*FieldView)
 	if fv != nil {
 		data := v.GetRowData(i)
 		if data != nil {
 			fv.SetStructure(data)
-			fv.Update()
+			dontOverwriteEdited := true
+			fv.Update(dontOverwriteEdited)
 		}
 		// getter := tableGetSliceRValFromPointer(v.structure).Interface().(zui.ListViewIDGetter)
 	}
@@ -265,8 +269,9 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	// zlog.Info("createRow5:", time.Since(start))
 	// edited := false
 	// v.handleUpdate(edited, i)
-	fv.Update()
-	// zlog.Info("createRow6:", time.Since(start))
+	dontOverwriteEdited := false
+	fv.Update(dontOverwriteEdited)
+	// zlog.Info("createTableRow6:", time.Since(zui.ListLayoutStart))
 	return fv
 }
 
@@ -312,11 +317,13 @@ func (v *TableView) UpdateWithOldNewSlice(oldSlice, newSlice interface{}) {
 	newGetter := newSlice.(zui.ListViewIDGetter)
 	// zlog.Info("SLICE5:", oldGetter.GetID(5))
 	// var focusedRowID, focusedElementObjectName string
+	// start := time.Now()
 	if v.Header != nil {
 		// zlog.Info("SortSliceWithFields:", v.ObjectName())
 		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
 	}
 	v.List.UpdateWithOldNewSlice(oldGetter, newGetter)
+	// zlog.Info("UpdateWithOldNewSlice:", v.ObjectName(), time.Since(start))
 	// if focusedRowID != "" {
 	// 	v.List.Scroll
 	// 	focused.Focus(true)
