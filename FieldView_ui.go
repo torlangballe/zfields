@@ -140,6 +140,7 @@ func (v *FieldView) updateField(field *Field, fview zui.View, inter interface{},
 }
 
 func (v *FieldView) Update(dontOverwriteEdited bool) {
+	// zlog.Info("fv.Update:", v.ObjectName(), dontOverwriteEdited, IsFieldViewEditedRecently(v))
 	if dontOverwriteEdited && IsFieldViewEditedRecently(v) {
 		// zlog.Info("FV No Update, edited", v.Hierarchy())
 		return
@@ -319,8 +320,22 @@ func (v *FieldView) SetStructure(s interface{}) {
 	// do more here, recursive, and set changed?
 }
 
+func (v *FieldView) CallFieldAction(fieldID string, action ActionType, fieldValue interface{}) {
+	view, _ := v.FindViewWithName(fieldID, false)
+	if view == nil {
+		zlog.Error(nil, "CallFieldAction find view", fieldID)
+		return
+	}
+	f := v.findFieldWithID(fieldID)
+	if f == nil {
+		zlog.Error(nil, "CallFieldAction find field", fieldID)
+		return
+	}
+	v.callActionHandlerFunc(f, action, fieldValue, &view)
+}
+
 func (v *FieldView) callActionHandlerFunc(f *Field, action ActionType, fieldValue interface{}, view *zui.View) bool {
-	if action == EditedAction {
+	if action == EditedAction && f.SetEdited {
 		setFieldViewEdited(v)
 	}
 	return callActionHandlerFunc(v.structure, f, action, fieldValue, view)
@@ -513,7 +528,7 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 			} else {
 				menu.GetTitle = func(icount int) string {
 					// zlog.Info("fv menu gettitle:", f.FieldName, f.Format, icount)
-					return zwords.PluralWord(f.Format, float64(icount), "", "", 0)
+					return zwords.PluralWordWithCount(f.Format, float64(icount), "", "", 0)
 				}
 			}
 		}
@@ -624,6 +639,7 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field, noUpdate bool) zui.Vi
 		cols = 20
 	}
 	tv := zui.TextViewNew(str, style, cols, f.Rows)
+	tv.SetObjectName(f.ID)
 	f.SetFont(tv, nil)
 	tv.UpdateSecs = f.UpdateSecs
 	if !noUpdate && tv.UpdateSecs == -1 {
@@ -669,6 +685,26 @@ func (v *FieldView) makeImage(item zreflect.Item, f *Field) zui.View {
 	return iv
 }
 
+func setColorFromField(view zui.View, f *Field) {
+	col := zui.StyleDefaultFGColor()
+	if len(f.Colors) != 0 {
+		col = zgeo.ColorFromString(f.Colors[0])
+	}
+	view.SetColor(col)
+}
+
+func (v *FieldView) updateOldTime(label *zui.Label, f *Field) {
+	val, found := zreflect.FindFieldWithNameInStruct(f.FieldName, v.structure, true)
+	if found {
+		t := val.Interface().(time.Time)
+		if ztime.Since(t) > float64(f.OldSecs) {
+			label.SetColor(zgeo.ColorRed)
+		} else {
+			setColorFromField(label, f)
+		}
+	}
+}
+
 func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 	if zlog.IsInTests { // if in unit-tests, we don't show anything as it would change
 		label.SetText("")
@@ -701,11 +737,7 @@ func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 			label.SetColor(zgeo.ColorRed)
 		} else {
 			label.SetText(str)
-			col := zgeo.ColorDefaultForeground
-			if len(f.Colors) != 0 {
-				col = zgeo.ColorFromString(f.Colors[0])
-			}
-			label.SetColor(col)
+			setColorFromField(label, f)
 		}
 		v.callActionHandlerFunc(f, DataChangedAction, inter, &label.View)
 	}
@@ -763,7 +795,7 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 				iv.SetMinSize(zgeo.Size{16, 16})
 				stack.Add(iv, zgeo.Center)
 				if stack.Presented {
-					stack.ArrangeChildren(nil)
+					stack.ArrangeChildren()
 				}
 				title := bs.Title
 				iv.SetToolTip(title)
@@ -771,7 +803,7 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 		} else {
 			if vf != nil {
 				stack.RemoveNamedChild(name, false)
-				stack.ArrangeChildren(nil)
+				stack.ArrangeChildren()
 			}
 		}
 	}
@@ -922,10 +954,14 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 				if f.IsStatic() {
 					label := view.(*zui.Label)
 					label.Columns = columns
-					if f.Flags&flagIsDuration != 0 {
+					if f.Flags&flagIsDuration != 0 || f.OldSecs != 0 {
 						timer := ztimer.RepeatNow(1, func() bool {
 							nlabel := view.(*zui.Label)
-							v.updateSinceTime(nlabel, f)
+							if f.Flags&flagIsDuration != 0 {
+								v.updateSinceTime(nlabel, f)
+							} else {
+								v.updateOldTime(nlabel, f)
+							}
 							return true
 						})
 						v.AddStopper(timer.Stop)
@@ -989,7 +1025,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		if f.Flags&flagExpandFromMinSize != 0 {
 			cell.ExpandFromMinSize = true
 		}
-		// zlog.Info("Add Field Item:", cell.View.ObjectName(), cell.Alignment, f.MinWidth, cell.MinSize.W, cell.MaxSize)
+		// zlog.Info("Add Field Item:", useMinWidth, view.ObjectName(), cell.Alignment, f.MinWidth, cell.MinSize.W, cell.MaxSize)
 		if labelizeWidth == 0 {
 			cell.View = view
 			v.AddCell(*cell, -1)

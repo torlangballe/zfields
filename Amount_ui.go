@@ -63,3 +63,34 @@ func (a AmountCircleValue) HandleFieldAction(f *Field, action ActionType, view *
 	}
 	return false
 }
+
+func (a ActivityValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
+	// zlog.Info("ActivtyAction:", action, a)
+	switch action {
+	case CreateFieldViewAction:
+		size := zgeo.SizeBoth(20)
+		if !f.Size.IsNull() {
+			size = f.Size
+		}
+		av := zui.ActivityNew(size)
+		av.AlwaysVisible = f.Visible
+		*view = av
+		return true
+
+	case SetupFieldAction:
+		f.MinWidth = 24
+		f.SetEdited = false
+		return true
+
+	case EditedAction, DataChangedAction:
+		zlog.Assert(view != nil && *view != nil)
+		av := (*view).(*zui.ActivityView)
+		if a == true {
+			av.Start()
+		} else {
+			av.Stop()
+		}
+		return false
+	}
+	return false
+}

@@ -112,7 +112,10 @@ type Field struct {
 	SortPriority         int
 	IsGroup              bool
 	FractionDecimals     int
+	OldSecs              int
 	ValueStoreKey        string
+	Visible              bool
+	SetEdited            bool
 }
 
 type ActionHandler interface {
@@ -186,6 +189,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	f.UpdateSecs = -1
 	f.Rows = 1
 	f.SortSmallFirst = zbool.Unknown
+	f.SetEdited = true
 
 	// zlog.Info("Field:", f.ID)
 	for _, part := range zreflect.GetTagAsMap(item.Tag)["zui"] {
@@ -202,6 +206,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		n, floatErr := strconv.ParseFloat(val, 32)
 		flag := zbool.FromString(val, false)
 		switch key {
+		case "setedited":
+			f.SetEdited = flag
 		case "format":
 			f.Format = val
 		case "vertical":
@@ -270,6 +276,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			f.FractionDecimals = int(n)
 		case "secs":
 			f.Flags |= flagHasSeconds
+		case "oldsecs":
+			f.OldSecs = int(n)
 		case "mins":
 			f.Flags |= flagHasMinutes
 		case "hours":
@@ -395,6 +403,10 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				zlog.Error(nil, "fields enable: only dot prefix local fields allowed:", val)
 			}
 		case "show":
+			if val == "" {
+				f.Visible = true
+				break
+			}
 			if !zstr.HasPrefix(val, ".", &f.LocalShow) {
 				zlog.Error(nil, "fields show: only dot prefix local fields allowed:", val)
 			}
@@ -418,7 +430,9 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		f.Tooltip = "press to copy to Clipboard"
 	}
 	// zfloat.Maximize(&f.MaxWidth, f.MinWidth)
-	zfloat.Minimize(&f.MinWidth, f.MaxWidth)
+	if f.MaxWidth != 0 {
+		zfloat.Minimize(&f.MinWidth, f.MaxWidth)
+	}
 	if f.Name == "" {
 		str := zstr.PadCamelCase(item.FieldName, " ")
 		str = zstr.FirstToTitleCase(str)
@@ -506,7 +520,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	case zreflect.KindFunc:
 		if f.MinWidth == 0 {
 			if f.Flags&flagIsImage != 0 {
-				min := f.Size.W // * ScreenMain().Scale
+				min := f.Size.W // * zscreen.GetMain().Scale
 				//				min += ImageViewDefaultMargin.W * 2
 				zfloat.Maximize(&f.MinWidth, min)
 			}

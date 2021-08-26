@@ -13,9 +13,16 @@ import (
 	"github.com/torlangballe/zutil/zreflect"
 )
 
-var TableDefaultRowHoverColor = zgeo.ColorNew(0.8, 0.91, 1, 1)
-var TableDefaultUseHeader = zdevice.IsDesktop()
-var TableDefaultRowColors = []zgeo.Color{zgeo.ColorNewGray(0.97, 1), zgeo.ColorNewGray(0.85, 1)}
+var (
+	TableDefaultRowHoverColor = zui.StyleColF(zgeo.ColorNew(0.8, 0.91, 1, 1), zgeo.ColorNew(0.3, 0.34, 0.4, 1))
+	TableDefaultUseHeader     = zdevice.IsDesktop()
+	TableDefaultRowColors     = func() []zgeo.Color {
+		return []zgeo.Color{
+			zui.StyleGray(0.97, 0.05),
+			zui.StyleGray(0.85, 0.15),
+		}
+	}
+)
 
 type TableView struct {
 	zui.StackView
@@ -127,12 +134,12 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	v.List = zui.ListViewNew(v.ObjectName()+".list", nil)
 	v.List.SetMinSize(zgeo.Size{50, 50})
-	v.List.RowColors = TableDefaultRowColors
+	v.List.RowColors = TableDefaultRowColors()
 	// v.List.PreCreateRows = 50
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
-		// v.ArrangeChildren(nil)
+		// v.ArrangeChildren()
 	}
-	v.List.HighlightColor = TableDefaultRowHoverColor
+	v.List.HighlightColor = TableDefaultRowHoverColor()
 	v.List.HoverHighlight = true
 	v.Add(v.List, zgeo.Left|zgeo.Top|zgeo.Expand)
 	if !rval.IsNil() {
@@ -176,8 +183,10 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 // 	return v
 // }
 
-func (v *TableView) ArrangeChildren(onlyChild *zui.View) {
-	v.StackView.ArrangeChildren(onlyChild)
+func (v *TableView) ArrangeChildren() {
+	v.StackView.ArrangeChildren()
+	freeOnly := true
+	v.Header.ArrangeAdvanced(freeOnly)
 	if v.GetRowCount() > 0 && v.Header != nil {
 		first, last := v.List.GetFirstLastVisibleRowIndexes()
 		// zlog.Info("TV ArrangeChildren", first, last, zlog.GetCallingStackString())

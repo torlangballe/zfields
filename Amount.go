@@ -9,3 +9,6 @@ type AmountBarValue float64
 // It is used to create a zui.AmountView circle, since it implements the
 // zfield.ActionFieldHandler interface and hooks into it to setup, create and update the view
 type AmountCircleValue float64
+
+// ActivityValue is an amount-spinner. Set true to spin, false to hide
+type ActivityValue bool

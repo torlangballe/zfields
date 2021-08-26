@@ -16,7 +16,7 @@ import (
 
 func makeCircledButton() *zui.ShapeView {
 	v := zui.ShapeViewNew(zui.ShapeViewTypeCircle, zgeo.Size{30, 30})
-	v.SetColor(zgeo.ColorNewGray(0.8, 1))
+	v.SetColor(zui.StyleGray(0.8, 0.2))
 	return v
 }
 
@@ -26,7 +26,7 @@ func makeCircledTextButton(text string, f *Field) *zui.ShapeView {
 	font := zui.FontNice(w, zui.FontStyleNormal)
 	f.SetFont(v, font)
 	v.SetText(text)
-	v.SetTextColor(zgeo.ColorBlack)
+	v.SetTextColor(zui.StyleGray(0.2, 0.8))
 	v.SetTextAlignment(zgeo.Center)
 	return v
 }
@@ -40,7 +40,7 @@ func makeCircledImageButton(iname string) *zui.ShapeView {
 
 func makeCircledTrashButton() *zui.ShapeView {
 	trash := makeCircledImageButton("trash")
-	trash.SetColor(zgeo.ColorNew(1, 0.8, 0.8, 1))
+	trash.SetColor(zui.StyleCol(zgeo.ColorNew(0.5, 0.8, 1, 1), zgeo.ColorNew(0.4, 0.1, 0.1, 1)))
 	return trash
 }
 
@@ -50,7 +50,7 @@ func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView
 	ct.ReplaceChild(stack, newStack)
 	ns := zui.ViewGetNative(newStack)
 	ctp := ns.Parent().Parent().View.(zui.ContainerType)
-	ctp.ArrangeChildren(nil)
+	ctp.ArrangeChildren()
 	zui.PresentViewCallReady(newStack, false)
 	if sendEdited {
 		fh, _ := structure.(ActionHandler)
@@ -134,7 +134,6 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			fieldView.buildStack(f.ID, a, zgeo.Size{}, true, 5)
 			if !f.IsStatic() && !single {
 				trash := makeCircledTrashButton()
-				trash.SetColor(zgeo.ColorNew(1, 0.8, 0.8, 1))
 				fieldView.Add(trash, zgeo.CenterLeft)
 				index := n
 				trash.SetPressedHandler(func() {
