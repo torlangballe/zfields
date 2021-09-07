@@ -16,11 +16,11 @@ import (
 var (
 	TableDefaultRowHoverColor = zui.StyleColF(zgeo.ColorNew(0.8, 0.91, 1, 1), zgeo.ColorNew(0.3, 0.34, 0.4, 1))
 	TableDefaultUseHeader     = zdevice.IsDesktop()
-	TableDefaultRowColors     = func() []zgeo.Color {
-		return []zgeo.Color{
-			zui.StyleGray(0.97, 0.05),
-			zui.StyleGray(0.85, 0.15),
+	TableDefaultGetRowColor   = func(i int) zgeo.Color {
+		if i%2 == 0 {
+			return zui.StyleGray(0.97, 0.05)
 		}
+		return zui.StyleGray(0.85, 0.15)
 	}
 )
 
@@ -134,7 +134,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	}
 	v.List = zui.ListViewNew(v.ObjectName()+".list", nil)
 	v.List.SetMinSize(zgeo.Size{50, 50})
-	v.List.RowColors = TableDefaultRowColors()
+	v.List.GetRowColor = TableDefaultGetRowColor
 	// v.List.PreCreateRows = 50
 	v.List.HandleScrolledToRows = func(y float64, first, last int) {
 		// v.ArrangeChildren()

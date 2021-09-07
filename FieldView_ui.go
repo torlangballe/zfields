@@ -162,6 +162,7 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 		}
 		v.updateField(f, fview, item.Interface, children)
 		called := v.callActionHandlerFunc(f, DataChangedAction, item.Address, &fview)
+		// zlog.Info("fv.Update:", v.ObjectName(), f.ID, called)
 		if called {
 			// fmt.Println("FV Update called", v.id, f.Kind, f.ID)
 			continue
@@ -874,17 +875,22 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 				if got && f.IsStatic() {
 					view = v.makeText(item, f, false)
 				} else {
-					exp = zgeo.HorExpand
-					// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
-					childStruct := item.Address
-					vertical := true
-					fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, labelizeWidth, v)
-					fieldView.parentField = f
-					if f.IsGroup {
-						fieldView.MakeGroup(f)
+					col, got := item.Interface.(zgeo.Color)
+					if got {
+						view = zui.ColorViewNew(col)
+					} else {
+						exp = zgeo.HorExpand
+						// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
+						childStruct := item.Address
+						vertical := true
+						fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, labelizeWidth, v)
+						fieldView.parentField = f
+						if f.IsGroup {
+							fieldView.MakeGroup(f)
+						}
+						view = fieldView
+						fieldView.buildStack(f.ID, zgeo.TopLeft, zgeo.Size{}, true, 5)
 					}
-					view = fieldView
-					fieldView.buildStack(f.ID, zgeo.TopLeft, zgeo.Size{}, true, 5)
 				}
 
 			case zreflect.KindBool:
