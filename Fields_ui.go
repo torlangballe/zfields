@@ -179,7 +179,7 @@ func fieldNameToID(name string) string {
 	return zstr.FirstToLowerWithAcronyms(name)
 }
 
-func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, index int) bool {
+func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, index int, immediateEdit bool) bool {
 	f.Index = index
 	f.ID = fieldNameToID(item.FieldName)
 	// zlog.Info("FIELD:", f.ID, item.FieldName)
@@ -419,6 +419,9 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		case "since":
 			f.Flags |= flagIsStatic | flagIsDuration
 		}
+	}
+	if immediateEdit {
+		f.UpdateSecs = -1
 	}
 	if f.HeaderSize.IsNull() {
 		f.HeaderSize = f.Size

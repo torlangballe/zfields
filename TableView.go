@@ -3,6 +3,7 @@
 package zfields
 
 import (
+	"math"
 	"reflect"
 	"strings"
 
@@ -114,7 +115,8 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 
 	for i, item := range froot.Children {
 		var f Field
-		if f.makeFromReflectItem(structure, item, i) {
+		immediateEdit := false
+		if f.makeFromReflectItem(structure, item, i, immediateEdit) {
 			v.fields = append(v.fields, f)
 		}
 	}
@@ -144,7 +146,7 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	v.Add(v.List, zgeo.Left|zgeo.Top|zgeo.Expand)
 	if !rval.IsNil() {
 		v.List.RowUpdater = func(i int, edited bool) {
-			v.FlushDataToRow(i)
+			v.FlushDataToRow(i, edited)
 			// code below is EXACTLY flush???
 			// rowStack, _ := v.List.GetVisibleRowViewFromIndex(i).(*zui.StackView)
 			// if rowStack != nil {
@@ -245,14 +247,15 @@ func (v *TableView) SetStructureList(list interface{}) {
 func (v *TableView) FlashRow() {
 }
 
-func (v *TableView) FlushDataToRow(i int) {
+func (v *TableView) FlushDataToRow(i int, edited bool) {
 	// zlog.Info("TV: FlushDataToRow:", i)
 	fv, _ := v.List.GetVisibleRowViewFromIndex(i).(*FieldView)
 	if fv != nil {
 		data := v.GetRowData(i)
 		if data != nil {
 			fv.SetStructure(data)
-			dontOverwriteEdited := true
+			dontOverwriteEdited := !edited
+			// zlog.Info("TV: FlushDataToRow:", dontOverwriteEdited, i, data)
 			fv.Update(dontOverwriteEdited)
 		}
 		// getter := tableGetSliceRValFromPointer(v.structure).Interface().(zui.ListViewIDGetter)
@@ -265,16 +268,18 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	// zlog.Info("createRow:", time.Since(start))
 	data := v.GetRowData(i)
 	// zlog.Info("createRow2:", time.Since(start))
-	fv := FieldViewNew(rowID, data, 0)
+	immediateEdit := false
+	fv := FieldViewNew(rowID, data, 0, immediateEdit)
 	fv.Vertical = false
 	fv.fields = v.fields
 	fv.SetSpacing(0)
 	fv.SetCanFocus(true)
-	fv.SetMargin(zgeo.RectMake(v.RowInset, 0, -v.RowInset, 0))
+	fv.SetMargin(zgeo.RectMake(v.RowInset, 0, -math.Max(16, v.RowInset), 0))
 	//	rowStruct := v.GetRowData(i)
 	useWidth := true //(v.Header != nil)
 	// zlog.Info("createRow4:", time.Since(start))
-	fv.buildStack(name, zgeo.CenterLeft, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset)
+	showStatic := true
+	fv.buildStack(name, zgeo.CenterLeft, showStatic, zgeo.Size{v.ColumnMargin, 0}, useWidth, v.RowInset)
 	// zlog.Info("createRow5:", time.Since(start))
 	// edited := false
 	// v.handleUpdate(edited, i)

@@ -34,6 +34,7 @@ type FieldView struct {
 	id            string
 	handleUpdate  func(edited bool)
 	labelizeWidth float64
+	immediateEdit bool
 	//	getSubStruct  func(structID string, direct bool) interface{}
 }
 
@@ -60,35 +61,37 @@ func IsFieldViewEditedRecently(fv *FieldView) bool {
 	return false
 }
 
-func fieldViewNew(id string, vertical bool, structure interface{}, spacing float64, marg zgeo.Size, labelizeWidth float64, parent *FieldView) *FieldView {
+func fieldViewNew(id string, vertical bool, structure interface{}, spacing float64, marg zgeo.Size, labelizeWidth float64, immediateEdit bool, parent *FieldView) *FieldView {
 	// start := time.Now()
 	v := &FieldView{}
 	v.StackView.Init(v, vertical, id)
-	// zlog.Info("fieldViewNew", reflect.ValueOf(v.View).Type())
+	// zlog.Info("fieldViewNew", immediateEdit)
 	v.SetMargin(zgeo.RectFromMinMax(marg.Pos(), marg.Pos().Negative()))
 	v.structure = structure
 	v.labelizeWidth = labelizeWidth
+	v.immediateEdit = immediateEdit
 	v.id = id
 	v.parent = parent
 	children := v.getStructItems()
 
 	for i, item := range children {
 		var f Field
-		if f.makeFromReflectItem(structure, item, i) {
+		if f.makeFromReflectItem(structure, item, i, immediateEdit) {
+			// zlog.Info("fieldViewNew f:", f.Name, f.UpdateSecs)
 			v.fields = append(v.fields, f)
 		}
 	}
 	return v
 }
 
-func (v *FieldView) Build(update bool) {
+func (v *FieldView) Build(update, showStatic bool) {
 	a := zgeo.Left //| zgeo.HorExpand
 	if v.Vertical {
 		a |= zgeo.Top
 	} else {
 		a |= zgeo.VertCenter
 	}
-	v.buildStack(v.ObjectName(), a, zgeo.Size{}, true, 5) // Size{6, 4}
+	v.buildStack(v.ObjectName(), a, showStatic, zgeo.Size{}, true, 5) // Size{6, 4}
 	if update {
 		dontOverwriteEdited := false
 		v.Update(dontOverwriteEdited)
@@ -123,7 +126,9 @@ func (v *FieldView) updateField(field *Field, fview zui.View, inter interface{},
 	for _, f := range v.fields {
 		if f.LocalShow == field.ID {
 			view, _ := v.findNamedViewOrInLabelized(f.ID)
-			view.Show(on)
+			if view != nil { // can be nil if only showing static
+				view.Show(on)
+			}
 		}
 		if f.LocalEnable == field.ID {
 			view, labelizer := v.findNamedViewOrInLabelized(f.ID)
@@ -157,7 +162,7 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 		// fmt.Println("FV Update Item:", f.Name)
 		fview, _ := v.findNamedViewOrInLabelized(f.ID)
 		if fview == nil {
-			zlog.Info("FV Update no view found:", i, v.id, f.ID)
+			// zlog.Info("FV Update no view found:", i, v.id, f.ID)
 			continue
 		}
 		v.updateField(f, fview, item.Interface, children)
@@ -181,12 +186,13 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 				enum = ei.Interface.(zdict.ItemsGetter).GetItems()
 			}
 			// zlog.Assert(enum != nil, f.Name, f.LocalEnum, f.Enum)
+			// zlog.Info("Update FV: Menu2:", f.Name, enum, item.Interface)
 			menuType.UpdateItems(enum, []interface{}{item.Interface})
 			continue
 		}
 		if menuType == nil && f.Kind == zreflect.KindSlice {
 			// val, found := zreflect.FindFieldWithNameInStruct(f.FieldName, v.structure, true)
-			// fmt.Printf("updateSliceFieldView: %s %p %p %v %p\n", v.id, item.Interface, val.Interface(), found, view)
+			// fmt.Printf("updateSliceFieldView: %s %p %p %v %p\n", v.id, item.Interface, val.Interface(), found, fview)
 			var selectedIndex int
 			if f.Flags&flagIsNamedSelection != 0 {
 				selectedIndex, _ = zui.DefaultLocalKeyValueStore.GetInt(v.makeNamedSelectionKey(f), 0)
@@ -257,7 +263,9 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 			str := getTextFromNumberishItem(item, f)
 			if f.IsStatic() {
 				label, _ := fview.(*zui.Label)
-				label.SetText(str)
+				if label != nil {
+					label.SetText(str)
+				}
 				break
 			}
 			tv, _ := fview.(*zui.TextView)
@@ -311,8 +319,8 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 	}
 }
 
-func FieldViewNew(id string, structure interface{}, labelizeWidth float64) *FieldView {
-	v := fieldViewNew(id, true, structure, 12, zgeo.Size{10, 10}, labelizeWidth, nil)
+func FieldViewNew(id string, structure interface{}, labelizeWidth float64, immediateEdit bool) *FieldView {
+	v := fieldViewNew(id, true, structure, 12, zgeo.Size{10, 10}, labelizeWidth, immediateEdit, nil)
 	return v
 }
 
@@ -553,7 +561,8 @@ func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zu
 		menu.SetMaxWidth(f.MaxWidth)
 		view = menu
 		menu.SetSelectedHandler(func() {
-			v.fieldToDataItem(f, menu, false)
+			valInterface, _ := v.fieldToDataItem(f, menu, false)
+			v.updateField(f, view, valInterface, v.getStructItems())
 			v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
 		})
 	}
@@ -658,9 +667,9 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field, noUpdate bool) zui.Vi
 		view := zui.View(tv)
 		v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
 	})
-	tv.SetKeyHandler(func(key zui.KeyboardKey, mods zui.KeyboardModifier) {
-		// zlog.Info("keyup!")
-	})
+	// tv.SetKeyHandler(func(key zui.KeyboardKey, mods zui.KeyboardModifier) bool {
+	// zlog.Info("keyup!")
+	// })
 	// zlog.Info("FV makeText:", f.FieldName, tv.MinWidth, tv.Columns)
 	return tv
 }
@@ -810,7 +819,7 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 	}
 }
 
-func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
+func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, showStatic bool, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
 	zlog.Assert(reflect.ValueOf(v.structure).Kind() == reflect.Ptr, name, v.structure)
 	// fmt.Println("buildStack1", name, defaultAlign)
 	children := v.getStructItems()
@@ -824,6 +833,9 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 		f := findFieldWithIndex(&v.fields, j)
 		if f == nil {
 			//			zlog.Error(nil, "no field for index", j)
+			continue
+		}
+		if !showStatic && f.IsStatic() {
 			continue
 		}
 		// zlog.Info("   buildStack2", j, f.Name, item)
@@ -883,13 +895,13 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 						// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
 						childStruct := item.Address
 						vertical := true
-						fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, labelizeWidth, v)
+						fieldView := fieldViewNew(f.ID, vertical, childStruct, 10, zgeo.Size{}, labelizeWidth, v.immediateEdit, v)
 						fieldView.parentField = f
 						if f.IsGroup {
 							fieldView.MakeGroup(f)
 						}
 						view = fieldView
-						fieldView.buildStack(f.ID, zgeo.TopLeft, zgeo.Size{}, true, 5)
+						fieldView.buildStack(f.ID, zgeo.TopLeft, showStatic, zgeo.Size{}, true, 5)
 					}
 				}
 
@@ -943,7 +955,7 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, cellMar
 				if labelizeWidth != 0 {
 					vert = false
 				}
-				view = v.buildStackFromSlice(v.structure, vert, f)
+				view = v.buildStackFromSlice(v.structure, vert, showStatic, f)
 				break
 				// 	// view = createStackFromActionFieldHandlerSlice(&item, f)
 				// }
@@ -1067,7 +1079,7 @@ func (v *FieldView) ToData(showError bool) (err error) {
 		// fmt.Println("FV Update Item:", f.Name)
 		fview, _ := v.findNamedViewOrInLabelized(f.ID)
 		if fview == nil {
-			zlog.Info("FV Update no view found:", v.id, f.ID)
+			// zlog.Info("FV Update no view found:", v.id, f.ID)
 			continue
 		}
 		_, e := v.fieldToDataItem(&f, fview, showError)
@@ -1209,10 +1221,10 @@ func (fv *FieldView) getStructItems() []zreflect.Item {
 	return rootItems.Children
 }
 
-func PresentOKCancelStruct(structPtr interface{}, labelizeWidth float64, title string, done func(ok bool) bool) {
-	fview := FieldViewNew("OC", structPtr, labelizeWidth)
+func PresentOKCancelStruct(structPtr interface{}, labelizeWidth float64, showStatic, immediateEdit bool, title string, done func(ok bool) bool) {
+	fview := FieldViewNew("OC", structPtr, labelizeWidth, immediateEdit)
 	update := true
-	fview.Build(update)
+	fview.Build(update, showStatic)
 	zui.PresentOKCanceledView(fview, title, func(ok bool) bool {
 		if ok {
 			err := fview.ToData(true)

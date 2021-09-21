@@ -44,9 +44,9 @@ func makeCircledTrashButton() *zui.ShapeView {
 	return trash
 }
 
-func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView, vertical bool, f *Field, sendEdited bool) zui.View {
+func (v *FieldView) updateSliceValue(structure interface{}, stack *zui.StackView, vertical, showStatic bool, f *Field, sendEdited bool) zui.View {
 	ct := stack.Parent().View.(zui.ContainerType)
-	newStack := v.buildStackFromSlice(structure, vertical, f)
+	newStack := v.buildStackFromSlice(structure, vertical, showStatic, f)
 	ct.ReplaceChild(stack, newStack)
 	ns := zui.ViewGetNative(newStack)
 	ctp := ns.Parent().Parent().View.(zui.ContainerType)
@@ -72,7 +72,7 @@ func (v *FieldView) changeNamedSelectionIndex(i int, f *Field) {
 	zui.DefaultLocalKeyValueStore.SetInt(i, key, true)
 }
 
-func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f *Field) zui.View {
+func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showStatic bool, f *Field) zui.View {
 	sliceVal, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
 	// zlog.Info("buildStackFromSlice:", f.FieldName, vertical, reflect.ValueOf(structure).Kind(), f.Spacing)
 	var bar *zui.StackView
@@ -121,7 +121,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			}
 			// fmt.Printf("buildStackFromSlice element: %s %p\n", f.FieldName, childStruct)
 
-			fieldView = fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, v.labelizeWidth, v)
+			fieldView = fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, v.labelizeWidth, v.immediateEdit, v)
 			view = fieldView
 			fieldView.parentField = f
 			a := zgeo.Left //| zgeo.HorExpand
@@ -130,8 +130,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			} else {
 				a |= zgeo.VertCenter
 			}
-
-			fieldView.buildStack(f.ID, a, zgeo.Size{}, true, 5)
+			fieldView.buildStack(f.ID, a, showStatic, zgeo.Size{}, true, 5)
 			if !f.IsStatic() && !single {
 				trash := makeCircledTrashButton()
 				fieldView.Add(trash, zgeo.CenterLeft)
@@ -140,7 +139,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
 					zslice.RemoveAt(val.Addr().Interface(), index)
 					// zlog.Info("newlen:", index, val.Len())
-					v.updateSliceValue(structure, stack, vertical, f, true)
+					v.updateSliceValue(structure, stack, vertical, showStatic, f, true)
 				})
 			}
 			stack.Add(fieldView, zgeo.TopLeft|zgeo.HorExpand)
@@ -172,7 +171,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 			if fhItem != nil {
 				fhItem.HandleAction(f, NewStructAction, nil)
 			}
-			v.updateSliceValue(structure, stack, vertical, f, true)
+			v.updateSliceValue(structure, stack, vertical, showStatic, f, true)
 			//			stack.CustomView.PressedHandler()()
 		})
 		if bar != nil {
@@ -190,7 +189,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 					val, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
 					zslice.RemoveAt(val.Addr().Interface(), selectedIndex)
 					// zlog.Info("newlen:", index, val.Len())
-					v.updateSliceValue(structure, stack, vertical, f, true)
+					v.updateSliceValue(structure, stack, vertical, showStatic, f, true)
 				}
 			})
 		})
@@ -201,7 +200,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		bar.Add(shape, zgeo.CenterLeft)
 		shape.SetPressedHandler(func() {
 			v.changeNamedSelectionIndex(selectedIndex-1, f)
-			v.updateSliceValue(structure, stack, vertical, f, false)
+			v.updateSliceValue(structure, stack, vertical, showStatic, f, false)
 		})
 		shape.SetUsable(selectedIndex > 0)
 
@@ -218,7 +217,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical bool, f 
 		bar.Add(shape, zgeo.CenterLeft)
 		shape.SetPressedHandler(func() {
 			v.changeNamedSelectionIndex(selectedIndex+1, f)
-			v.updateSliceValue(structure, stack, vertical, f, false)
+			v.updateSliceValue(structure, stack, vertical, showStatic, f, false)
 		})
 		shape.SetUsable(selectedIndex < sliceVal.Len()-1)
 	}
