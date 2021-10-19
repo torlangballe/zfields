@@ -175,16 +175,6 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 	return v
 }
 
-// func (v *TableView) SetRect(rect zgeo.Rect) zui.View {
-// 	v.StackView.SetRect(rect)
-// 	if v.GetRowCount() > 0 && v.Header != nil {
-// 		zlog.Info("TV SetRect fit")
-// 		stack := v.List.GetVisibleRowViewFromIndex(0).(*zui.StackView)
-// 		v.Header.FitToRowStack(stack, v.ColumnMargin)
-// 	}
-// 	return v
-// }
-
 func (v *TableView) ArrangeChildren() {
 	v.StackView.ArrangeChildren()
 	freeOnly := true
@@ -203,6 +193,7 @@ func (v *TableView) ArrangeChildren() {
 }
 
 func (v *TableView) ReadyToShow(beforeWindow bool) {
+	// zlog.Info("TV: ReadyToShow", beforeWindow, )
 	if beforeWindow && v.Header != nil {
 		headers := makeHeaderFields(v.fields, v.HeaderHeight)
 		v.Header.Populate(headers)

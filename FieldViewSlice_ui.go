@@ -74,7 +74,6 @@ func (v *FieldView) changeNamedSelectionIndex(i int, f *Field) {
 
 func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showStatic bool, f *Field) zui.View {
 	sliceVal, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
-	// zlog.Info("buildStackFromSlice:", f.FieldName, vertical, reflect.ValueOf(structure).Kind(), f.Spacing)
 	var bar *zui.StackView
 	stack := zui.StackViewNew(vertical, f.ID)
 	if f != nil && f.Spacing != 0 {
@@ -83,6 +82,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 	key := v.makeNamedSelectionKey(f)
 	var selectedIndex int
 	single := (f.Flags&flagIsNamedSelection != 0)
+	zlog.Info("buildStackFromSlice:", f.FieldName, vertical, single)
 	var fieldView *FieldView
 	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
 	if single {
@@ -116,6 +116,9 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 		if view == nil {
 			childStruct := nval.Addr().Interface()
 			vert := !vertical
+			if !f.Vertical.IsUndetermined() {
+				vert = f.Vertical.BoolValue()
+			}
 			if f.LabelizeWidth != 0 {
 				vert = true
 			}

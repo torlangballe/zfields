@@ -115,6 +115,7 @@ type Field struct {
 	OldSecs              int
 	ValueStoreKey        string
 	Visible              bool
+	Disabled             bool
 	SetEdited            bool
 }
 
@@ -190,6 +191,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 	f.Rows = 1
 	f.SortSmallFirst = zbool.Unknown
 	f.SetEdited = true
+	f.Vertical = zbool.Unknown
 
 	// zlog.Info("Field:", f.ID)
 	for _, part := range zreflect.GetTagAsMap(item.Tag)["zui"] {
@@ -399,17 +401,17 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		case "button":
 			f.Flags |= flagIsButton
 		case "enable":
-			if !zstr.HasPrefix(val, ".", &f.LocalEnable) {
-				zlog.Error(nil, "fields enable: only dot prefix local fields allowed:", val)
-			}
+			f.LocalEnable = val
+		case "disable":
+			f.Disabled = true // not used yet
+		case "hide":
+			f.Visible = false
 		case "show":
 			if val == "" {
 				f.Visible = true
 				break
 			}
-			if !zstr.HasPrefix(val, ".", &f.LocalShow) {
-				zlog.Error(nil, "fields show: only dot prefix local fields allowed:", val)
-			}
+			f.LocalShow = val
 		case "placeholder":
 			if val != "" {
 				f.Placeholder = val
