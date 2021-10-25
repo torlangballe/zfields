@@ -19,6 +19,7 @@ import (
 	"github.com/torlangballe/zutil/zlog"
 	"github.com/torlangballe/zutil/zreflect"
 	"github.com/torlangballe/zutil/zstr"
+	"github.com/torlangballe/zutil/ztime"
 )
 
 // type fieldType int
@@ -31,14 +32,15 @@ type UIStringer interface {
 }
 
 const (
-	DataChangedAction     ActionType = "changed"     // called when value changed, typically programatically or edited
+	DataChangedActionPre  ActionType = "changed-pre" // called on struct before DataChangedAction on fields
+	DataChangedAction     ActionType = "changed"     // called when value changed, typically programatically or edited. Called on fields with id, then on struct
 	EditedAction          ActionType = "edited"      // called when value edited by user, DataChangedAction will also be called
 	SetupFieldAction      ActionType = "setup"       // called when a field is being set up from a struct, view will be nil
 	PressedAction         ActionType = "pressed"     // called when view is pressed, view is valid
 	LongPressedAction     ActionType = "longpressed" // called when view is long-pressed, view is valid
 	NewStructAction       ActionType = "newstruct"   // called when new stucture is created, for initializing. View may  be nil
 	CreateFieldViewAction ActionType = "createview"  // called to create view, view is pointer to view and is returned in it
-	CreatedViewAction     ActionType = "createdview" // called to create view, view is pointer to view and is returned in it
+	CreatedViewAction     ActionType = "createdview" // called after view created, view is pointer to newly created view.
 )
 
 const (
@@ -497,7 +499,13 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		if f.Flags&flagIsDuration != 0 {
 			setDurationColumns(f)
 		}
-		// f.MaxWidth = 40
+		if f.Format != "" {
+			f.Columns = len(f.Format)
+			if f.Format == "nice" {
+				f.Columns = len(ztime.NiceFormat)
+			}
+			break
+		}
 		if f.MinWidth == 0 {
 			if f.Flags&flagHasDays != 0 {
 				f.Columns += 3

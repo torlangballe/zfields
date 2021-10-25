@@ -117,7 +117,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 			childStruct := nval.Addr().Interface()
 			vert := !vertical
 			if !f.Vertical.IsUndetermined() {
-				vert = f.Vertical.BoolValue()
+				vert = f.Vertical.Bool()
 			}
 			if f.LabelizeWidth != 0 {
 				vert = true

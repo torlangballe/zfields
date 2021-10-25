@@ -177,6 +177,9 @@ func TableViewNew(name string, header bool, structData interface{}) *TableView {
 
 func (v *TableView) ArrangeChildren() {
 	v.StackView.ArrangeChildren()
+	if v.Header == nil {
+		return
+	}
 	freeOnly := true
 	v.Header.ArrangeAdvanced(freeOnly)
 	if v.GetRowCount() > 0 && v.Header != nil {

@@ -161,7 +161,7 @@ func findIDInStructItems(items []zreflect.Item, id string) *zreflect.Item {
 }
 
 func (v *FieldView) updateShowEnableOnView(view zui.View, isShow bool, toID string) {
-	zlog.Info("updateShowOrEnable:", isShow, toID, len(v.fields))
+	// zlog.Info("updateShowOrEnable:", isShow, toID, len(v.fields))
 	for _, f := range v.fields {
 		if f.ID != toID {
 			continue
@@ -171,12 +171,12 @@ func (v *FieldView) updateShowEnableOnView(view zui.View, isShow bool, toID stri
 		if isShow {
 			local = f.LocalShow
 		}
-		zlog.Info("update?:", toID, f.FieldName, local)
+		// zlog.Info("update?:", toID, f.FieldName, local)
 		if zstr.HasPrefix(local, "./", &id) {
-			zlog.Info("local:", toID, f.FieldName, id)
+			// zlog.Info("local:", toID, f.FieldName, id)
 			fitem := findIDInStructItems(v.getStructItems(), id)
 			if fitem != nil {
-				zlog.Info("./local2:", fitem.FieldName)
+				// zlog.Info("./local2:", fitem.FieldName)
 				doItem(fitem, isShow, view)
 			}
 			continue
@@ -204,7 +204,6 @@ func (v *FieldView) updateShowEnableOnView(view zui.View, isShow bool, toID stri
 			continue
 		}
 	}
-	zlog.Info("updateShowOrEnableDONE:", isShow, toID)
 }
 
 func (v *FieldView) Update(dontOverwriteEdited bool) {
@@ -214,6 +213,11 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 		return
 	}
 	children := v.getStructItems()
+	fh, _ := v.structure.(ActionHandler)
+	sview := v.View
+	if fh != nil {
+		fh.HandleAction(nil, DataChangedActionPre, &sview)
+	}
 	// fmt.Println("FV Update", v.id, len(children))
 	// fmt.Printf("FV Update: %s %d %+v\n", v.id, len(children), v.structure)
 	for i, item := range children {
@@ -382,9 +386,7 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 		}
 	}
 	// call general one with no id. Needs to be after above loop, so values set
-	fh, _ := v.structure.(ActionHandler)
 	if fh != nil {
-		sview := v.View
 		fh.HandleAction(nil, DataChangedAction, &sview)
 	}
 }
@@ -395,7 +397,19 @@ func FieldViewNew(id string, structure interface{}, labelizeWidth float64, immed
 }
 
 func (v *FieldView) SetStructure(s interface{}) {
+	// fmt.Printf("FV SetStruct: %s %+v\n", v.ObjectName(), s)
 	v.structure = s
+	for _, c := range v.getStructItems() {
+		if c.Kind == zreflect.KindStruct {
+			id := fieldNameToID(c.FieldName)
+			view, _ := v.FindViewWithName(id, false)
+			fv, _ := view.(*FieldView)
+			if fv != nil {
+				fv.SetStructure(c.Address)
+			}
+		}
+	}
+
 	// do more here, recursive, and set changed?
 }
 
@@ -428,7 +442,6 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 	// zlog.Info("callFieldHandler1", action, f.Name, structure != nil, reflect.ValueOf(structure))
 	fh, _ := structure.(ActionHandler)
 	var result bool
-	// zlog.Info("callFieldHandler1", action, f.Name, fh != nil)
 	if fh != nil {
 		result = fh.HandleAction(f, action, view)
 	}
@@ -445,7 +458,6 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 					if !first {
 						fh2, _ := fv.structure.(ActionHandler)
 						if fh2 != nil {
-							// zlog.Info("callFieldHandler action2", action, f.Name)
 							fh2.HandleAction(nil, action, &parent.View)
 						}
 					}
@@ -461,7 +473,7 @@ func callActionHandlerFunc(structure interface{}, f *Field, action ActionType, f
 		if !direct {
 			changed := false
 			sv := reflect.ValueOf(structure)
-			// zlog.Info("\n\nNew struct search for children?:", f.FieldName, sv.Kind(), sv.CanAddr(), v.structure != nil)
+			// zlog.Info("\n\nNew struct search for children?:", f.FieldName, sv.Kind(), sv.CanAddr(), structure != nil)
 			if sv.Kind() == reflect.Ptr || sv.CanAddr() {
 				// Here we run thru the possiblly new struct again, and find the item with same id as field
 				// s := structure
@@ -543,7 +555,11 @@ func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.ImageButtonVi
 	if f.Title != "" {
 		name = f.Title
 	}
-	button := zui.ImageButtonViewNew(name, color, zgeo.Size{40, f.Height}, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
+	s := zgeo.Size{20, 22}
+	if f.Height != 0 {
+		s.H = f.Height
+	}
+	button := zui.ImageButtonViewNew(name, color, s, zgeo.Size{}) //ShapeViewNew(ShapeViewTypeRoundRect, s)
 	button.SetTextColor(zgeo.ColorBlack)
 	button.TextXMargin = 0
 	return button
@@ -647,9 +663,14 @@ func getTimeString(item zreflect.Item, f *Field) string {
 		return ""
 	}
 	format := f.Format
+	secs := (f.Flags&flagHasSeconds != 0)
 	if format == "" {
 		format = "15:04 02-Jan-06"
+		if secs {
+			format = "15:04:03 02-Jan-06"
+		}
 	}
+	// zlog.Info("fv.getTimeString:", )
 	if format == "nice" {
 		str = ztime.GetNice(t, f.Flags&flagHasSeconds != 0)
 	} else {
@@ -729,14 +750,14 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field, noUpdate bool) zui.Vi
 	tv.SetPlaceholder(f.Placeholder)
 	tv.SetChangedHandler(func() {
 		v.fieldToDataItem(f, tv, true)
-		// zlog.Info("Changed text1:", structure)
+		// zlog.Info("Changed text1:", f.FieldName)
 		if v.handleUpdate != nil {
 			edited := true
 			v.handleUpdate(edited)
 		}
 		// fmt.Printf("Changed text: %p v:%p %+v\n", v.structure, v, v.structure)
 		view := zui.View(tv)
-		v.callActionHandlerFunc(f, EditedAction, item.Interface, &view)
+		v.callActionHandlerFunc(f, EditedAction, item.Value.Interface(), &view)
 	})
 	// tv.SetKeyHandler(func(key zui.KeyboardKey, mods zui.KeyboardModifier) bool {
 	// zlog.Info("keyup!")
@@ -970,9 +991,9 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, showSta
 							childStruct := item.Address
 							vert := true
 							if !f.Vertical.IsUndetermined() {
-								vert = f.Vertical.BoolValue()
+								vert = f.Vertical.Bool()
 							}
-							zlog.Info("struct fieldViewNew", f.ID, vert, f.Vertical)
+							// zlog.Info("struct fieldViewNew", f.ID, vert, f.Vertical)
 
 							fieldView := fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, labelizeWidth, v.immediateEdit, v)
 							fieldView.parentField = f
@@ -1175,7 +1196,7 @@ func (v *FieldView) ToData(showError bool) (err error) {
 }
 
 func (v *FieldView) fieldToDataItem(f *Field, view zui.View, showError bool) (value reflect.Value, err error) {
-	if f.Flags&flagIsStatic != 0 {
+	if f.IsStatic() {
 		return
 	}
 	children := v.getStructItems()
@@ -1203,7 +1224,7 @@ func (v *FieldView) fieldToDataItem(f *Field, view zui.View, showError bool) (va
 		}
 		b, _ := item.Address.(*bool)
 		if b != nil {
-			*b = bv.Value().BoolValue()
+			*b = bv.Value().Bool()
 			// zlog.Info("SetCheck:", bv.Value(), *b, value)
 		}
 		bi, _ := item.Address.(*zbool.BoolInd)
@@ -1212,44 +1233,42 @@ func (v *FieldView) fieldToDataItem(f *Field, view zui.View, showError bool) (va
 		}
 
 	case zreflect.KindInt:
-		if !f.IsStatic() {
-			if item.TypeName == "BoolInd" {
-				bv, _ := view.(*zui.CheckBox)
-				*item.Address.(*bool) = bv.Value().BoolValue()
-			} else {
-				tv, _ := view.(*zui.TextView)
-				str := tv.Text()
-				if item.Package == "time" && item.TypeName == "Duration" {
-					var secs float64
-					secs, err = ztime.GetSecsFromHMSString(str, f.Flags&flagHasHours != 0, f.Flags&flagHasMinutes != 0, f.Flags&flagHasSeconds != 0)
-					if err != nil {
-						break
-					}
-					d := item.Address.(*time.Duration)
-					if d != nil {
-						*d = ztime.SecondsDur(secs)
-					}
-					return
-				}
-				var i64 int64
-				i64, err = strconv.ParseInt(str, 10, 64)
+		if item.TypeName == "BoolInd" {
+			bv, _ := view.(*zui.CheckBox)
+			*item.Address.(*bool) = bv.Value().Bool()
+		} else {
+			tv, _ := view.(*zui.TextView)
+			str := tv.Text()
+			if item.Package == "time" && item.TypeName == "Duration" {
+				var secs float64
+				secs, err = ztime.GetSecsFromHMSString(str, f.Flags&flagHasHours != 0, f.Flags&flagHasMinutes != 0, f.Flags&flagHasSeconds != 0)
 				if err != nil {
 					break
 				}
-				zint.SetAny(item.Address, i64)
+				d := item.Address.(*time.Duration)
+				if d != nil {
+					*d = ztime.SecondsDur(secs)
+				}
+				return
 			}
-		}
-
-	case zreflect.KindFloat:
-		if f.Flags&flagIsStatic == 0 {
-			tv, _ := view.(*zui.TextView)
-			var f64 float64
-			f64, err = strconv.ParseFloat(tv.Text(), 64)
+			var i64 int64
+			i64, err = strconv.ParseInt(str, 10, 64)
 			if err != nil {
 				break
 			}
-			zfloat.SetAny(item.Address, f64)
+			zint.SetAny(item.Address, i64)
 		}
+
+	case zreflect.KindFloat:
+		tv, _ := view.(*zui.TextView)
+		var f64 float64
+		f64, err = strconv.ParseFloat(tv.Text(), 64)
+		if err != nil {
+			break
+		}
+		zfloat.SetAny(item.Address, f64)
+		// zlog.Info("fieldToDataItem float", f.FieldName, view.ObjectName(), tv.Text(), f64, err, item)
+		// fmt.Printf("fieldToDataItem struct: %+v\n", item.Value.Interface())
 
 	case zreflect.KindTime:
 		break
