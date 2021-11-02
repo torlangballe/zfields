@@ -31,6 +31,12 @@ type UIStringer interface {
 	ZUIString() string
 }
 
+type Widgeter interface {
+	Create(f *Field) zui.View
+	SetValue(view zui.View, val interface{})
+	GetValue(view zui.View) interface{}
+}
+
 const (
 	DataChangedActionPre  ActionType = "changed-pre" // called on struct before DataChangedAction on fields
 	DataChangedAction     ActionType = "changed"     // called when value changed, typically programatically or edited. Called on fields with id, then on struct
@@ -104,7 +110,7 @@ type Field struct {
 	LocalShow            string // not implemented yet
 	FontSize             float64
 	FontName             string
-	FontStyle            zui.FontStyle
+	FontStyle            zgeo.FontStyle
 	Spacing              float64
 	Placeholder          string
 	Columns              int
@@ -119,6 +125,7 @@ type Field struct {
 	Visible              bool
 	Disabled             bool
 	SetEdited            bool
+	WidgetName           string
 }
 
 type ActionHandler interface {
@@ -129,32 +136,38 @@ type ActionFieldHandler interface {
 	HandleFieldAction(f *Field, action ActionType, view *zui.View) bool
 }
 
+var widgeters = map[string]Widgeter{}
+
+func RegisterWigeter(name string, w Widgeter) {
+	widgeters[name] = w
+}
+
 func (f Field) IsStatic() bool {
 	return f.Flags&flagIsStatic != 0
 }
 
-func (f *Field) SetFont(view zui.View, from *zui.Font) {
+func (f *Field) SetFont(view zui.View, from *zgeo.Font) {
 	to := view.(zui.TextLayoutOwner)
 	size := f.FontSize
 	if size == 0 {
 		if from != nil {
 			size = from.Size
 		} else {
-			size = zui.FontDefaultSize
+			size = zgeo.FontDefaultSize
 		}
 	}
 	style := f.FontStyle
 	if from != nil {
 		style = from.Style
 	}
-	var font *zui.Font
+	var font *zgeo.Font
 	if f.FontName != "" {
-		font = zui.FontNew(f.FontName, size, style)
+		font = zgeo.FontNew(f.FontName, size, style)
 	} else if from != nil {
-		font = new(zui.Font)
+		font = new(zgeo.Font)
 		*font = *from
 	} else {
-		font = zui.FontNice(size, style)
+		font = zgeo.FontNice(size, style)
 	}
 	to.SetFont(font)
 }
@@ -254,6 +267,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if floatErr == nil {
 				f.Rows = int(n)
 			}
+		case "widget":
+			f.WidgetName = val
 		case "ascending":
 			f.SortSmallFirst = zbool.True
 			f.SortPriority = int(n)
@@ -344,7 +359,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 				n, _ := strconv.Atoi(part)
 				if n != 0 {
 					if sign != 0 {
-						f.FontSize = float64(n*sign) + zui.FontDefaultSize
+						f.FontSize = float64(n*sign) + zgeo.FontDefaultSize
 					} else {
 						f.FontSize = float64(n)
 					}
@@ -352,7 +367,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 					if f.FontName == "" && f.FontSize == 0 {
 						f.FontName = part
 					} else {
-						f.FontStyle = zui.FontStyleFromStr(part)
+						f.FontStyle = zgeo.FontStyleFromStr(part)
 					}
 				}
 			}

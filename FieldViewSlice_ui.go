@@ -22,8 +22,8 @@ func makeCircledButton() *zui.ShapeView {
 
 func makeCircledTextButton(text string, f *Field) *zui.ShapeView {
 	v := makeCircledButton()
-	w := zui.FontDefaultSize + 6
-	font := zui.FontNice(w, zui.FontStyleNormal)
+	w := zgeo.FontDefaultSize + 6
+	font := zgeo.FontNice(w, zgeo.FontStyleNormal)
 	f.SetFont(v, font)
 	v.SetText(text)
 	v.SetTextColor(zui.StyleGray(0.2, 0.8))
@@ -82,7 +82,7 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 	key := v.makeNamedSelectionKey(f)
 	var selectedIndex int
 	single := (f.Flags&flagIsNamedSelection != 0)
-	zlog.Info("buildStackFromSlice:", f.FieldName, vertical, single)
+	// zlog.Info("buildStackFromSlice:", f.FieldName, vertical, single)
 	var fieldView *FieldView
 	// zlog.Info("buildStackFromSlice:", vertical, f.ID, val.Len())
 	if single {
@@ -95,20 +95,27 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 		stack.SetStroke(zui.GroupingStrokeWidth, zui.GroupingStrokeColor)
 		label := zui.LabelNew(f.Name)
 		label.SetColor(zgeo.ColorNewGray(0, 1))
-		font := zui.FontNice(zui.FontDefaultSize, zui.FontStyleBoldItalic)
+		font := zgeo.FontNice(zgeo.FontDefaultSize, zgeo.FontStyleBoldItalic)
 		f.SetFont(label, font)
 		stack.Add(label, zgeo.TopLeft)
 	}
 	for n := 0; n < sliceVal.Len(); n++ {
 		var view zui.View
+		a := zgeo.Center
+		if vertical {
+			a = zgeo.TopLeft
+		}
+		if f.WidgetName != "" {
+			w := widgeters[f.WidgetName]
+			if w != nil {
+				view = w.Create(f)
+				stack.Add(view, a)
+			}
+		}
 		nval := sliceVal.Index(n)
 		h, _ := nval.Interface().(ActionFieldHandler)
-		if h != nil {
+		if view == nil && h != nil {
 			if h.HandleFieldAction(f, CreateFieldViewAction, &view) {
-				a := zgeo.Center
-				if vertical {
-					a = zgeo.TopLeft
-				}
 				stack.Add(view, a)
 				// fmt.Println("buildStackFromSlice element:", f.FieldName)
 			}
@@ -247,8 +254,14 @@ func updateSliceFieldView(view zui.View, selectedIndex int, item zreflect.Item, 
 		if single && n != selectedIndex {
 			continue
 		}
-		fv, _ := c.(*FieldView)
 		val := item.Value.Index(n)
+		w := widgeters[f.WidgetName]
+		if w != nil {
+			w.SetValue(c, val.Interface())
+			n++
+			continue
+		}
+		fv, _ := c.(*FieldView)
 		if fv == nil {
 			ah, _ := val.Interface().(ActionFieldHandler)
 			// zlog.Info("Update Sub Slice field fv == nil:", n, ah != nil)

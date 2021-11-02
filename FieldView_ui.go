@@ -680,28 +680,44 @@ func getTimeString(item zreflect.Item, f *Field) string {
 }
 
 func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
-	str := ""
 	isDurTime := item.Kind == zreflect.KindTime && f.Flags&flagIsDuration != 0
 	// zlog.Info("makeTextTime:", f.Name, isDurTime)
 	if item.Kind == zreflect.KindTime && !isDurTime {
-		str = getTimeString(item, f)
-	} else if isDurTime || item.Package == "time" && item.TypeName == "Duration" {
+		return getTimeString(item, f)
+	}
+	if isDurTime || item.Package == "time" && item.TypeName == "Duration" {
 		var t float64
 		if isDurTime {
 			t = ztime.Since(item.Interface.(time.Time))
 		} else {
 			t = ztime.DurSeconds(time.Duration(item.Value.Int()))
 		}
-		str = ztime.GetSecsAsHMSString(t, f.Flags&flagHasSeconds != 0, 0)
+		return ztime.GetSecsAsHMSString(t, f.Flags&flagHasSeconds != 0, 0)
 		// zlog.Info("makeTextTime:", str, f.Name)
-	} else {
-		format := f.Format
-		if format == "" {
-			format = "%v"
-		}
-		str = fmt.Sprintf(format, item.Value.Interface())
 	}
-	return str
+	var format string
+	switch format {
+	case "memory":
+		b, err := zint.GetAny(item.Value.Interface())
+		if err == nil {
+			return zwords.GetMemoryString(b, "", 1)
+		}
+	case "storage":
+		b, err := zint.GetAny(item.Value.Interface())
+		if err == nil {
+			return zwords.GetStorageSizeString(b, "", 1)
+		}
+	case "bps":
+		b, err := zint.GetAny(item.Value.Interface())
+		if err == nil {
+			return zwords.GetBandwidthString(b, "", 1)
+		}
+	case "":
+		format = f.Format
+	default:
+		format = "%v"
+	}
+	return fmt.Sprintf(format, item.Value.Interface())
 }
 
 func (v *FieldView) makeText(item zreflect.Item, f *Field, noUpdate bool) zui.View {
@@ -855,7 +871,7 @@ func (v *FieldView) MakeGroup(f *Field) {
 		t.Rect = rect
 		t.Text = f.Name
 		t.Alignment = zgeo.TopLeft
-		t.Font = zui.FontNice(zui.FontDefaultSize-3, zui.FontStyleBold)
+		t.Font = zgeo.FontNice(zgeo.FontDefaultSize-3, zgeo.FontStyleBold)
 		t.Color = zgeo.ColorNewGray(0.3, 0.6)
 		t.Margin = zgeo.Size{8, 4}
 		t.Draw(canvas)
@@ -912,6 +928,63 @@ func updateFlagStack(flags zreflect.Item, f *Field, view zui.View) {
 	}
 }
 
+func (v *FieldView) createSpecialView(item zreflect.Item, f *Field, children []zreflect.Item) zui.View {
+	if f.Flags&flagIsButton != 0 {
+		return v.makeButton(item, f)
+	}
+	// if f.WidgetName != "" {
+	// 	zlog.Info("createSpecialView?:", f.WidgetName)
+	// }
+	if f.Kind != zreflect.KindSlice && f.WidgetName != "" {
+		// zlog.Info("createSpecialView:", f.WidgetName)
+		w := widgeters[f.WidgetName]
+		if w != nil {
+			return w.Create(f)
+		}
+	}
+	var view zui.View
+	v.callActionHandlerFunc(f, CreateFieldViewAction, item.Address, &view) // this sees if actual ITEM is a field handler
+	if view != nil {
+		return view
+	}
+	if f.LocalEnum != "" {
+		ei := findLocalFieldWithID(&children, f.LocalEnum)
+		if zlog.ErrorIf(ei == nil, f.Name, f.LocalEnum) {
+			return nil
+		}
+		getter, _ := ei.Interface.(zdict.ItemsGetter)
+		if zlog.ErrorIf(getter == nil, "field isn't enum, not ItemGetter type", f.Name, f.LocalEnum) {
+			return nil
+		}
+		enum := getter.GetItems()
+		// zlog.Info("make local enum:", f.Name, f.LocalEnum, enum, ei)
+		// 	continue
+		// }
+		//					zlog.Info("make local enum:", f.Name, f.LocalEnum)
+		menu := v.makeMenu(item, f, enum)
+		if menu == nil {
+			zlog.Error(nil, "no local enum for", f.LocalEnum)
+			return nil
+		}
+		return menu
+		// mt := view.(zui.MenuType)
+		//!!					mt.SelectWithValue(item.Interface)
+	}
+	if f.Enum != "" {
+		// fmt.Println("make enum:", f.Name)
+		enum, _ := fieldEnums[f.Enum]
+		zlog.Assert(enum != nil, f.Enum)
+		view = v.makeMenu(item, f, enum)
+		// exp = zgeo.AlignmentNone
+		return view
+	}
+	_, got := item.Interface.(UIStringer)
+	if got && f.IsStatic() {
+		return v.makeText(item, f, false)
+	}
+	return nil
+}
+
 func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, showStatic bool, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
 	zlog.Assert(reflect.ValueOf(v.structure).Kind() == reflect.Ptr, name, v.structure)
 	// fmt.Println("buildStack1", name, defaultAlign)
@@ -935,162 +1008,114 @@ func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, showSta
 		// 	zlog.Info("   buildStack1.2", j, item.Value.Len())
 		// }
 
-		var view zui.View
-		if f.Flags&flagIsButton != 0 {
-			view = v.makeButton(item, f)
-		} else {
-			v.callActionHandlerFunc(f, CreateFieldViewAction, item.Address, &view) // this sees if actual ITEM is a field handler
-			// if called {
-			// 	zlog.Info("CALLED:", f.Name, view)
-			// }
-		}
-		if view != nil {
-		} else if f.LocalEnum != "" {
-			ei := findLocalFieldWithID(&children, f.LocalEnum)
-			if !zlog.ErrorIf(ei == nil, f.Name, f.LocalEnum) {
-				getter, _ := ei.Interface.(zdict.ItemsGetter)
-				if !zlog.ErrorIf(getter == nil, "field isn't enum, not ItemGetter type", f.Name, f.LocalEnum) {
-					enum := getter.GetItems()
-					// zlog.Info("make local enum:", f.Name, f.LocalEnum, enum, ei)
-					// 	continue
-					// }
-					//					zlog.Info("make local enum:", f.Name, f.LocalEnum)
-					menu := v.makeMenu(item, f, enum)
-					if menu == nil {
-						zlog.Error(nil, "no local enum for", f.LocalEnum)
-						continue
+		view := v.createSpecialView(item, f, children)
+		if view == nil {
+			switch f.Kind {
+			case zreflect.KindStruct:
+				// zlog.Info("make stringer?:", f.Name, got)
+				col, got := item.Interface.(zgeo.Color)
+				if got {
+					view = zui.ColorViewNew(col)
+				} else {
+					exp = zgeo.HorExpand
+					// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
+					childStruct := item.Address
+					vert := true
+					if !f.Vertical.IsUndetermined() {
+						vert = f.Vertical.Bool()
 					}
-					view = menu
-					// mt := view.(zui.MenuType)
-					//!!					mt.SelectWithValue(item.Interface)
+					// zlog.Info("struct fieldViewNew", f.ID, vert, f.Vertical)
+
+					fieldView := fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, labelizeWidth, v.immediateEdit, v)
+					fieldView.parentField = f
+					if f.IsGroup {
+						fieldView.MakeGroup(f)
+					}
+					view = fieldView
+					fieldView.buildStack(f.ID, zgeo.TopLeft, showStatic, zgeo.Size{}, true, 5)
 				}
-			}
-		} else if f.Enum != "" {
-			// fmt.Println("make enum:", f.Name)
-			enum, _ := fieldEnums[f.Enum]
-			zlog.Assert(enum != nil, f.Enum)
-			view = v.makeMenu(item, f, enum)
-			exp = zgeo.AlignmentNone
-		} else {
-			_, got := item.Interface.(UIStringer)
-			if got && f.IsStatic() {
-				view = v.makeText(item, f, false)
-			} else {
-				switch f.Kind {
-				case zreflect.KindStruct:
-					// zlog.Info("make stringer?:", f.Name, got)
-					if got && f.IsStatic() {
-						view = v.makeText(item, f, false)
-					} else {
-						col, got := item.Interface.(zgeo.Color)
-						if got {
-							view = zui.ColorViewNew(col)
-						} else {
-							exp = zgeo.HorExpand
-							// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
-							childStruct := item.Address
-							vert := true
-							if !f.Vertical.IsUndetermined() {
-								vert = f.Vertical.Bool()
-							}
-							// zlog.Info("struct fieldViewNew", f.ID, vert, f.Vertical)
 
-							fieldView := fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, labelizeWidth, v.immediateEdit, v)
-							fieldView.parentField = f
-							if f.IsGroup {
-								fieldView.MakeGroup(f)
-							}
-							view = fieldView
-							fieldView.buildStack(f.ID, zgeo.TopLeft, showStatic, zgeo.Size{}, true, 5)
-						}
-					}
+			case zreflect.KindBool:
+				b := zbool.ToBoolInd(item.Value.Interface().(bool))
+				exp = zgeo.AlignmentNone
+				view = v.makeCheckbox(f, b)
 
-				case zreflect.KindBool:
-					b := zbool.ToBoolInd(item.Value.Interface().(bool))
-					exp = zgeo.AlignmentNone
-					view = v.makeCheckbox(f, b)
-
-				case zreflect.KindInt:
-					if item.TypeName == "BoolInd" {
-						exp = zgeo.HorShrink
-						view = v.makeCheckbox(f, zbool.BoolInd(item.Value.Int()))
-					} else {
-						_, got := item.Interface.(zbool.BitsetItemsOwner)
-						if got {
-							view = makeFlagStack(item, f)
-							break
-						}
-						noUpdate := true
-						view = v.makeText(item, f, noUpdate)
-					}
-
-				case zreflect.KindFloat:
-					noUpdate := true
-					view = v.makeText(item, f, noUpdate)
-
-				case zreflect.KindString:
-					if f.Flags&flagIsImage != 0 {
-						view = v.makeImage(item, f)
-					} else {
-						if (f.MaxWidth != f.MinWidth || f.MaxWidth != 0) && f.Flags&flagIsButton == 0 {
-							exp = zgeo.HorExpand
-						}
-						view = v.makeText(item, f, false)
-					}
-
-				case zreflect.KindSlice:
-					getter, _ := item.Interface.(zdict.ItemsGetter)
-					if getter != nil {
-						menu := v.makeMenu(item, f, getter.GetItems())
-						view = menu
+			case zreflect.KindInt:
+				if item.TypeName == "BoolInd" {
+					exp = zgeo.HorShrink
+					view = v.makeCheckbox(f, zbool.BoolInd(item.Value.Int()))
+				} else {
+					_, got := item.Interface.(zbool.BitsetItemsOwner)
+					if got {
+						view = makeFlagStack(item, f)
 						break
 					}
-					//				zlog.Info("Make slice:", v.ObjectName(), f.FieldName, , labelizeWidth)
-					if f.Alignment != zgeo.AlignmentNone {
-						exp = zgeo.Expand
-					} else {
-						exp = zgeo.AlignmentNone
-					}
-					vert := v.Vertical
-					if labelizeWidth != 0 {
-						vert = false
-					}
-					zlog.Info("call buildStackFromSlice:", vert, v.ObjectName())
-					view = v.buildStackFromSlice(v.structure, vert, showStatic, f)
-					break
-					// 	// view = createStackFromActionFieldHandlerSlice(&item, f)
-					// }
-					// view = v.makeText(item, f)
-					break
-
-				case zreflect.KindTime:
-					columns := f.Columns
-					if columns == 0 {
-						columns = getColumnsForTime(f)
-					}
 					noUpdate := true
 					view = v.makeText(item, f, noUpdate)
-					if f.IsStatic() {
-						label := view.(*zui.Label)
-						label.Columns = columns
-						if f.Flags&flagIsDuration != 0 || f.OldSecs != 0 {
-							timer := ztimer.RepeatNow(1, func() bool {
-								nlabel := view.(*zui.Label)
-								if f.Flags&flagIsDuration != 0 {
-									v.updateSinceTime(nlabel, f)
-								} else {
-									v.updateOldTime(nlabel, f)
-								}
-								return true
-							})
-							v.AddOnRemoveFunc(timer.Stop)
-							zui.ViewGetNative(view).AddOnRemoveFunc(timer.Stop)
-						}
-					}
-
-				default:
-					panic(fmt.Sprintln("buildStack bad type:", f.Name, f.Kind))
 				}
+
+			case zreflect.KindFloat:
+				noUpdate := true
+				view = v.makeText(item, f, noUpdate)
+
+			case zreflect.KindString:
+				if f.Flags&flagIsImage != 0 {
+					view = v.makeImage(item, f)
+				} else {
+					if (f.MaxWidth != f.MinWidth || f.MaxWidth != 0) && f.Flags&flagIsButton == 0 {
+						exp = zgeo.HorExpand
+					}
+					view = v.makeText(item, f, false)
+				}
+
+			case zreflect.KindSlice:
+				getter, _ := item.Interface.(zdict.ItemsGetter)
+				if getter != nil {
+					menu := v.makeMenu(item, f, getter.GetItems())
+					view = menu
+					break
+				}
+				//				zlog.Info("Make slice:", v.ObjectName(), f.FieldName, , labelizeWidth)
+				if f.Alignment != zgeo.AlignmentNone {
+					exp = zgeo.Expand
+				} else {
+					exp = zgeo.AlignmentNone
+				}
+				vert := v.Vertical
+				if labelizeWidth != 0 {
+					vert = false
+				}
+				// zlog.Info("call buildStackFromSlice:", vert, v.ObjectName(), f.WidgetName)
+				view = v.buildStackFromSlice(v.structure, vert, showStatic, f)
+				break
+
+			case zreflect.KindTime:
+				columns := f.Columns
+				if columns == 0 {
+					columns = getColumnsForTime(f)
+				}
+				noUpdate := true
+				view = v.makeText(item, f, noUpdate)
+				if f.IsStatic() {
+					label := view.(*zui.Label)
+					label.Columns = columns
+					if f.Flags&flagIsDuration != 0 || f.OldSecs != 0 {
+						timer := ztimer.RepeatNow(1, func() bool {
+							nlabel := view.(*zui.Label)
+							if f.Flags&flagIsDuration != 0 {
+								v.updateSinceTime(nlabel, f)
+							} else {
+								v.updateOldTime(nlabel, f)
+							}
+							return true
+						})
+						v.AddOnRemoveFunc(timer.Stop)
+						zui.ViewGetNative(view).AddOnRemoveFunc(timer.Stop)
+					}
+				}
+
+			default:
+				panic(fmt.Sprintln("buildStack bad type:", f.Name, f.Kind))
 			}
 		}
 		pt, _ := view.(zui.Pressable)

@@ -4,93 +4,99 @@ package zfields
 
 import (
 	"github.com/torlangballe/zui"
+	"github.com/torlangballe/zutil/zfloat"
 	"github.com/torlangballe/zutil/zgeo"
 	"github.com/torlangballe/zutil/zlog"
 )
 
-func (a AmountBarValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
-	switch action {
-	case EditedAction, DataChangedAction:
-		zlog.Assert(view != nil && *view != nil)
-		progress := (*view).(*zui.AmountView)
-		progress.SetValue(float64(a))
-
-	case CreateFieldViewAction:
-		min := f.MinWidth
-		if min == 0 {
-			min = 100
-		}
-		progress := zui.AmountViewBarNew(min)
-		if len(f.Colors) != 0 {
-			col := zgeo.ColorFromString(f.Colors[0])
-			if col.Valid {
-				progress.SetColor(col)
-			}
-		}
-		*view = progress
-		return true
-	}
-	return false
+func init() {
+	RegisterWigeter("amount-bar", AmountBarWidgeter{})
+	RegisterWigeter("amount-circle", AmountCircleWidgeter{})
+	RegisterWigeter("activity", ActivityWidgeter{})
 }
 
-func createAmountView(f *Field) zui.View {
-	v := zui.AmountViewCircleNew()
-	v.SetColor(zgeo.ColorNew(0, 0.8, 0, 1))
+type AmountBarWidgeter struct{} //////////////////////////////////////////////////////////////
+
+func (a AmountBarWidgeter) Create(f *Field) zui.View {
+	min := f.MinWidth
+	if min == 0 {
+		min = 100
+	}
+	progress := zui.AmountViewBarNew(min)
+	if len(f.Colors) != 0 {
+		col := zgeo.ColorFromString(f.Colors[0])
+		if col.Valid {
+			progress.SetColor(col)
+		}
+	}
+	return progress
+}
+
+func (a AmountBarWidgeter) SetValue(view zui.View, val interface{}) {
+	progress := view.(*zui.AmountView)
+	n, err := zfloat.GetAny(val)
+	if !zlog.OnError(err) {
+		progress.SetValue(n)
+	}
+}
+
+func (a AmountBarWidgeter) GetValue(view zui.View) interface{} {
+	progress := view.(*zui.AmountView)
+	return progress.Value()
+}
+
+type AmountCircleWidgeter struct{} //////////////////////////////////////////////////////////////
+
+func (a AmountCircleWidgeter) Create(f *Field) zui.View {
+	f.MinWidth = 24
+	view := zui.AmountViewCircleNew()
+	view.SetColor(zgeo.ColorNew(0, 0.8, 0, 1))
 	for i, n := range []float64{0, 70, 90} {
 		if i < len(f.Colors) {
-			v.ColorsFromValue[n] = zgeo.ColorFromString(f.Colors[i])
+			view.ColorsFromValue[n] = zgeo.ColorFromString(f.Colors[i])
 		}
 	}
-	return v
+	return view
 }
 
-func (a AmountCircleValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
-	const cpuSpace = 1
-	switch action {
-	case CreateFieldViewAction:
-		*view = createAmountView(f)
-		return true
-
-	case SetupFieldAction:
-		f.MinWidth = 24
-		return true
-
-	case EditedAction, DataChangedAction:
-		zlog.Assert(view != nil && *view != nil)
-		av := (*view).(*zui.AmountView)
-		av.SetValue(float64(a))
-		return true
+func (a AmountCircleWidgeter) SetValue(view zui.View, val interface{}) {
+	circle := view.(*zui.AmountView)
+	n, err := zfloat.GetAny(val)
+	if !zlog.OnError(err) {
+		circle.SetValue(n)
 	}
-	return false
 }
 
-func (a ActivityValue) HandleFieldAction(f *Field, action ActionType, view *zui.View) bool {
-	// zlog.Info("ActivtyAction:", action, a)
-	switch action {
-	case CreateFieldViewAction:
-		size := zgeo.SizeBoth(20)
-		if !f.Size.IsNull() {
-			size = f.Size
-		}
-		av := zui.ActivityNew(size)
-		av.AlwaysVisible = f.Visible
-		*view = av
-		return true
+func (a AmountCircleWidgeter) GetValue(view zui.View) interface{} {
+	circle := view.(*zui.AmountView)
+	return circle.Value()
+}
 
-	case SetupFieldAction:
-		f.MinWidth = 24
-		f.SetEdited = false
-		return true
+type ActivityWidgeter struct{} //////////////////////////////////////////////////////////////
 
-	case EditedAction, DataChangedAction:
-		zlog.Assert(view != nil && *view != nil)
-		av := (*view).(*zui.ActivityView)
-		if a == true {
-			av.Start()
-		} else {
-			av.Stop()
-		}
-		return false
+func (a ActivityWidgeter) Create(f *Field) zui.View {
+	f.MinWidth = 24
+	f.SetEdited = false
+	size := zgeo.SizeBoth(20)
+	if !f.Size.IsNull() {
+		size = f.Size
 	}
-	return false
+	av := zui.ActivityViewNew(size)
+	av.AlwaysVisible = f.Visible
+	return av
+}
+
+func (a ActivityWidgeter) SetValue(view zui.View, val interface{}) {
+	on := val.(bool)
+	activity := view.(*zui.ActivityView)
+	if on {
+		activity.Start()
+	} else {
+		activity.Stop()
+	}
+}
+
+func (a ActivityWidgeter) GetValue(view zui.View) interface{} {
+	activity := view.(*zui.ActivityView)
+	return activity.IsStopped()
 }
