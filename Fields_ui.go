@@ -64,14 +64,12 @@ const (
 	flagNoTitle
 	flagToClipboard
 	flagIsNamedSelection
-	// flagIsTabGroup
 	flagIsStringer
 	flagIsPassword
 	flagExpandFromMinSize
 	flagIsDuration
 	flagIsOpaque
 	flagIsActions
-	// flagAllowNil
 )
 
 const (
@@ -80,13 +78,12 @@ const (
 )
 
 type Field struct {
-	Index       int
-	ID          string
-	ActionValue interface{} // ActionValue is used to send other information with an action into ActionHandler / ActionFieldHandler
-	Name        string
-	FieldName   string
-	Title       string // name of item in row, and header if no title
-	// Width         float64
+	Index                int
+	ID                   string
+	ActionValue          interface{} // ActionValue is used to send other information with an action into ActionHandler / ActionFieldHandler
+	Name                 string
+	FieldName            string
+	Title                string // name of item in row, and header if no title
 	MaxWidth             float64
 	MinWidth             float64
 	Kind                 zreflect.TypeKind

@@ -713,9 +713,9 @@ func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 			return zwords.GetBandwidthString(b, "", 1)
 		}
 	case "":
-		format = f.Format
-	default:
 		format = "%v"
+	default:
+		format = f.Format
 	}
 	return fmt.Sprintf(format, item.Value.Interface())
 }
