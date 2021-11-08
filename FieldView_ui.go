@@ -241,6 +241,14 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 			// fmt.Println("FV Update called", v.id, f.Kind, f.ID)
 			continue
 		}
+		if f.Kind != zreflect.KindSlice {
+			w := widgeters[f.WidgetName]
+			if w != nil {
+				// zlog.Info("WidgeterSetVal:", zui.ViewGetNative(fview).Hierarchy())
+				w.SetValue(fview, item.Interface)
+				continue
+			}
+		}
 		menuType, _ := fview.(zui.MenuType)
 		if menuType != nil && ((f.Enum != "" && f.Kind != zreflect.KindSlice) || f.LocalEnum != "") {
 			var enum zdict.Items
@@ -670,7 +678,6 @@ func getTimeString(item zreflect.Item, f *Field) string {
 			format = "15:04:03 02-Jan-06"
 		}
 	}
-	// zlog.Info("fv.getTimeString:", )
 	if format == "nice" {
 		str = ztime.GetNice(t, f.Flags&flagHasSeconds != 0)
 	} else {

@@ -10,9 +10,9 @@ import (
 )
 
 func init() {
-	RegisterWigeter("amount-bar", AmountBarWidgeter{})
-	RegisterWigeter("amount-circle", AmountCircleWidgeter{})
-	RegisterWigeter("activity", ActivityWidgeter{})
+	RegisterWigeter("zamount-bar", AmountBarWidgeter{})
+	RegisterWigeter("zamount-circle", AmountCircleWidgeter{})
+	RegisterWigeter("zactivity", ActivityWidgeter{})
 }
 
 type AmountBarWidgeter struct{} //////////////////////////////////////////////////////////////
@@ -33,10 +33,11 @@ func (a AmountBarWidgeter) Create(f *Field) zui.View {
 }
 
 func (a AmountBarWidgeter) SetValue(view zui.View, val interface{}) {
-	progress := view.(*zui.AmountView)
+	av := view.(*zui.AmountView)
 	n, err := zfloat.GetAny(val)
+	zlog.Info("AmountSet:", av.Hierarchy(), n, err)
 	if !zlog.OnError(err) {
-		progress.SetValue(n)
+		av.SetValue(n)
 	}
 }
 
