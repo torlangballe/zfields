@@ -376,11 +376,12 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 			} else {
 				if f.IsStatic() {
 					label, _ := fview.(*zui.Label)
-					if f.Flags&flagIsFixed != 0 {
-						str = f.Name
+					if label != nil {
+						if f.Flags&flagIsFixed != 0 {
+							str = f.Name
+						}
+						label.SetText(str)
 					}
-					zlog.Assert(label != nil, f.FieldName, reflect.ValueOf(fview).Type())
-					label.SetText(str)
 				} else {
 					tv, _ := fview.(*zui.TextView)
 					if tv != nil {
@@ -405,7 +406,7 @@ func FieldViewNew(id string, structure interface{}, labelizeWidth float64, immed
 }
 
 func (v *FieldView) SetStructure(s interface{}) {
-	// fmt.Printf("FV SetStruct: %s %+v\n", v.ObjectName(), s)
+	// fmt.Printf("FV SetStruct: %s %p\n", v.ObjectName(), s)
 	v.structure = s
 	for _, c := range v.getStructItems() {
 		if c.Kind == zreflect.KindStruct {
@@ -576,8 +577,8 @@ func (fv *FieldView) makeButton(item zreflect.Item, f *Field) *zui.ImageButtonVi
 func (v *FieldView) makeMenu(item zreflect.Item, f *Field, items zdict.Items) zui.View {
 	var view zui.View
 
-	if f.IsStatic() {
-		multi := false
+	if f.IsStatic() || item.IsSlice {
+		multi := item.IsSlice
 		// zlog.Info("FV Menu Make static:", f.ID, f.Format, f.Name)
 		vals := []interface{}{item.Interface}
 		isImage := (f.ImageFixedPath != "")
@@ -1235,6 +1236,11 @@ func (v *FieldView) fieldToDataItem(f *Field, view zui.View, showError bool) (va
 	// zlog.Info("fieldViewToDataItem before:", f.Name, f.Index, len(children), "s:", structure)
 	item := children[f.Index]
 	if (f.Enum != "" || f.LocalEnum != "") && !f.IsStatic() {
+		mo, _ := view.(*zui.MenuedShapeView)
+		if mo != nil {
+
+			return
+		}
 		mv, _ := view.(*zui.MenuView)
 		if mv != nil {
 			iface := mv.CurrentValue()

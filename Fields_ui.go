@@ -389,7 +389,7 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			if zstr.HasPrefix(val, ".", &f.LocalEnum) {
 			} else {
 				if fieldEnums[val] == nil {
-					zlog.Error(nil, "no such enum:", val)
+					zlog.Error(nil, "no such enum:", val, fieldEnums)
 				}
 				f.Enum = val
 			}
