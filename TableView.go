@@ -289,11 +289,13 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 		var h zui.Header
 		h.Height = f.Height
 		h.ID = f.ID
+		h.Align = zgeo.Left | zgeo.VertCenter
+		h.Justify = f.Justify
+		if f.Kind == zreflect.KindString && f.Enum == "" {
+			h.Align |= zgeo.HorExpand
+		}
 		if f.Height == 0 {
 			h.Height = height - 6
-		}
-		if f.Kind == zreflect.KindString && f.Enum == "" {
-			h.Align = zgeo.HorExpand
 		}
 		if f.Flags&flagHasHeaderImage != 0 {
 			h.ImageSize = f.HeaderSize
@@ -312,7 +314,6 @@ func makeHeaderFields(fields []Field, height float64) []zui.Header {
 		if f.Tooltip != "" && !strings.HasPrefix(f.Tooltip, ".") {
 			h.Tip = f.Tooltip
 		}
-		h.Align |= zgeo.Left | zgeo.VertCenter
 		h.SortSmallFirst = f.SortSmallFirst
 		h.SortPriority = f.SortPriority
 		headers = append(headers, h)
