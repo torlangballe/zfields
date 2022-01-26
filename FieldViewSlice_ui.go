@@ -1,3 +1,4 @@
+//go:build zui
 // +build zui
 
 package zfields
@@ -74,6 +75,7 @@ func (v *FieldView) changeNamedSelectionIndex(i int, f *Field) {
 
 func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showStatic bool, f *Field) zui.View {
 	sliceVal, _ := zreflect.FindFieldWithNameInStruct(f.FieldName, structure, true)
+	// zlog.Info("buildStackFromSlice:", v.ObjectName(), sliceVal.Len())
 	var bar *zui.StackView
 	stack := zui.StackViewNew(vertical, f.ID)
 	if f != nil && f.Spacing != 0 {

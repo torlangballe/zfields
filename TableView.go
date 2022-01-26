@@ -1,3 +1,4 @@
+//go:build zui
 // +build zui
 
 package zfields
@@ -182,15 +183,22 @@ func (v *TableView) ArrangeChildren() {
 	}
 	freeOnly := true
 	v.Header.ArrangeAdvanced(freeOnly)
-	if v.GetRowCount() > 0 && v.Header != nil {
-		first, last := v.List.GetFirstLastVisibleRowIndexes()
-		// zlog.Info("TV ArrangeChildren", first, last, zlog.GetCallingStackString())
-		for i := first; i <= last; i++ {
-			view := v.List.GetVisibleRowViewFromIndex(i)
-			if view != nil {
-				fv := view.(*FieldView)
-				v.Header.FitToRowStack(&fv.StackView, v.ColumnMargin)
-			}
+	if v.Header != nil {
+		if v.GetRowCount() > 0 {
+			first, _ := v.List.GetFirstLastVisibleRowIndexes()
+			view := v.List.GetVisibleRowViewFromIndex(first)
+			zlog.Assert(view != nil)
+			fv := view.(*FieldView)
+			v.Header.FitToRowStack(&fv.StackView, v.ColumnMargin)
+		} else { // no rows, make an empty one to fit header with
+			val := reflect.ValueOf(v.structure)
+			sliceType := val.Elem().Type()
+			newSlice := reflect.MakeSlice(sliceType, 1, 1)
+			emptyRowStruct := newSlice.Index(0).Addr().Interface()
+			emptyRowView := v.createRowFromData(emptyRowStruct, "").(*FieldView)
+			emptyRowView.SetRect(v.LocalRect())
+			emptyRowView.ArrangeChildren()
+			v.Header.FitToRowStack(&emptyRowView.StackView, v.ColumnMargin)
 		}
 	}
 }
@@ -258,10 +266,14 @@ func (v *TableView) FlushDataToRow(i int, edited bool) {
 
 func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 	// start := time.Now()
-	name := "row " + rowID
 	// zlog.Info("createRow:", time.Since(start))
 	data := v.GetRowData(i)
 	// zlog.Info("createRow2:", time.Since(start))
+	return v.createRowFromData(data, rowID)
+}
+
+func (v *TableView) createRowFromData(data interface{}, rowID string) zui.View {
+	name := "row " + rowID
 	immediateEdit := false
 	fv := FieldViewNew(rowID, data, 0, immediateEdit)
 	fv.Vertical = false
@@ -327,8 +339,9 @@ func (v *TableView) UpdateWithOldNewSlice(oldSlice, newSlice interface{}) {
 	// zlog.Info("SLICE5:", oldGetter.GetID(5))
 	// var focusedRowID, focusedElementObjectName string
 	// start := time.Now()
+	// zlog.Info("UpdateWithOldNewSlice:", v.ObjectName())
 	if v.Header != nil {
-		// zlog.Info("SortSliceWithFields:", v.ObjectName())
+		// zlog.Info("SortSliceWithFields:", v.ObjectName(), v.Header.SortOrder)
 		SortSliceWithFields(newSlice, v.fields, v.Header.SortOrder)
 	}
 	v.List.UpdateWithOldNewSlice(oldGetter, newGetter)
