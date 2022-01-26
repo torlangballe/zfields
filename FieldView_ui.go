@@ -689,7 +689,7 @@ func getTimeString(item zreflect.Item, f *Field) string {
 
 func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 	isDurTime := item.Kind == zreflect.KindTime && f.Flags&flagIsDuration != 0
-	// zlog.Info("makeTextTime:", f.Name, isDurTime)
+	// zlog.Info("makeTextTime:", f.Name, isDurTime, f.Format)
 	if item.Kind == zreflect.KindTime && !isDurTime {
 		return getTimeString(item, f)
 	}
@@ -703,7 +703,7 @@ func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 		return ztime.GetSecsAsHMSString(t, f.Flags&flagHasSeconds != 0, 0)
 		// zlog.Info("makeTextTime:", str, f.Name)
 	}
-	var format string
+	format := f.Format
 	switch format {
 	case "memory":
 		b, err := zint.GetAny(item.Value.Interface())
@@ -722,8 +722,6 @@ func getTextFromNumberishItem(item zreflect.Item, f *Field) string {
 		}
 	case "":
 		format = "%v"
-	default:
-		format = f.Format
 	}
 	return fmt.Sprintf(format, item.Value.Interface())
 }
