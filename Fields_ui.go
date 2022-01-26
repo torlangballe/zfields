@@ -1,3 +1,4 @@
+//go:build zui
 // +build zui
 
 package zfields
@@ -104,7 +105,9 @@ type Field struct {
 	UpdateSecs           float64
 	LabelizeWidth        float64
 	LocalEnable          string
-	LocalShow            string // not implemented yet
+	LocalDisable         string
+	LocalShow            string
+	LocalHide            string
 	FontSize             float64
 	FontName             string
 	FontStyle            zgeo.FontStyle
@@ -417,15 +420,23 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		case "enable":
 			f.LocalEnable = val
 		case "disable":
-			f.Disabled = true // not used yet
-		case "hide":
-			f.Visible = false
+			if val != "" {
+				f.LocalDisable = val
+			} else {
+				f.Disabled = true // not used yet
+			}
 		case "show":
 			if val == "" {
 				f.Visible = true
-				break
+			} else {
+				f.LocalShow = val
 			}
-			f.LocalShow = val
+		case "hide":
+			if val == "" {
+				f.Visible = false
+			} else {
+				f.LocalHide = val
+			}
 		case "placeholder":
 			if val != "" {
 				f.Placeholder = val

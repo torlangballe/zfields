@@ -1,3 +1,4 @@
+//go:build zui
 // +build zui
 
 package zfields
@@ -121,14 +122,14 @@ func (v *FieldView) findNamedViewOrInLabelized(name string) (view, maybeLabel zu
 func (v *FieldView) updateShowEnableFromZeroer(isZero, isShow bool, toID string) {
 	for _, f := range v.fields {
 		var id string
-		local := f.LocalEnable
-		if isShow {
-			local = f.LocalShow
-		}
+		local, neg := getLocalFromShowOrEnable(isShow, &f)
 		// zlog.Info("updateShowEnableFromZeroer:", f.FieldName, isZero, isShow, toID, local)
 		if zstr.HasPrefix(local, "./", &id) && id == toID {
 			_, fview := v.findNamedViewOrInLabelized(f.ID)
 			zlog.Assert(fview != nil)
+			if neg {
+				isShow = !isShow
+			}
 			if isShow {
 				fview.Show(!isZero)
 			} else {
@@ -141,8 +142,11 @@ func (v *FieldView) updateShowEnableFromZeroer(isZero, isShow bool, toID string)
 	//TODO: handle ../ and substruct/id style
 }
 
-func doItem(item *zreflect.Item, isShow bool, view zui.View) {
+func doItem(item *zreflect.Item, isShow bool, view zui.View, not bool) {
 	zero := item.Value.IsZero()
+	if not {
+		zero = !zero
+	}
 	if isShow {
 		view.Show(!zero)
 	} else {
@@ -160,6 +164,25 @@ func findIDInStructItems(items []zreflect.Item, id string) *zreflect.Item {
 	return nil
 }
 
+func getLocalFromShowOrEnable(isShow bool, f *Field) (local string, neg bool) {
+	if isShow {
+		if f.LocalShow != "" {
+			local = f.LocalShow
+		} else {
+			local = f.LocalHide
+			neg = true
+		}
+	} else {
+		if f.LocalEnable != "" {
+			local = f.LocalEnable
+		} else {
+			local = f.LocalDisable
+			neg = true
+		}
+	}
+	return
+}
+
 func (v *FieldView) updateShowEnableOnView(view zui.View, isShow bool, toID string) {
 	// zlog.Info("updateShowOrEnable:", isShow, toID, len(v.fields))
 	for _, f := range v.fields {
@@ -167,17 +190,12 @@ func (v *FieldView) updateShowEnableOnView(view zui.View, isShow bool, toID stri
 			continue
 		}
 		var prefix, id string
-		local := f.LocalEnable
-		if isShow {
-			local = f.LocalShow
-		}
-		// zlog.Info("update?:", toID, f.FieldName, local)
+		local, neg := getLocalFromShowOrEnable(isShow, &f)
 		if zstr.HasPrefix(local, "./", &id) {
 			// zlog.Info("local:", toID, f.FieldName, id)
 			fitem := findIDInStructItems(v.getStructItems(), id)
 			if fitem != nil {
-				// zlog.Info("./local2:", fitem.FieldName)
-				doItem(fitem, isShow, view)
+				doItem(fitem, isShow, view, neg)
 			}
 			continue
 		}
@@ -191,14 +209,14 @@ func (v *FieldView) updateShowEnableOnView(view zui.View, isShow bool, toID stri
 			fitem := findIDInStructItems(fv.getStructItems(), id)
 			if fitem != nil {
 				// zlog.Info("subin:", id, fv.ObjectName(), fitem != nil)
-				doItem(fitem, isShow, view)
+				doItem(fitem, isShow, view, neg)
 			}
 			continue
 		}
 		if zstr.HasPrefix(local, "../", &id) && v.parent != nil {
 			fitem := findIDInStructItems(v.parent.getStructItems(), id)
 			if fitem != nil {
-				doItem(fitem, isShow, view)
+				doItem(fitem, isShow, view, neg)
 				// zlog.Info("sub back:", toID, id)
 			}
 			continue
