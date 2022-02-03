@@ -1,3 +1,4 @@
+//go:build zui
 // +build zui
 
 package zfields
@@ -49,8 +50,11 @@ func (a AmountBarWidgeter) GetValue(view zui.View) interface{} {
 type AmountCircleWidgeter struct{} //////////////////////////////////////////////////////////////
 
 func (a AmountCircleWidgeter) Create(f *Field) zui.View {
-	f.MinWidth = 24
+	if f.Size.IsNull() {
+		f.Size = zgeo.SizeBoth(20)
+	}
 	view := zui.AmountViewCircleNew()
+	view.SetMinSize(f.Size)
 	view.SetColor(zgeo.ColorNew(0, 0.8, 0, 1))
 	for i, n := range []float64{0, 70, 90} {
 		if i < len(f.Colors) {
@@ -76,13 +80,11 @@ func (a AmountCircleWidgeter) GetValue(view zui.View) interface{} {
 type ActivityWidgeter struct{} //////////////////////////////////////////////////////////////
 
 func (a ActivityWidgeter) Create(f *Field) zui.View {
-	f.MinWidth = 24
-	f.SetEdited = false
-	size := zgeo.SizeBoth(20)
-	if !f.Size.IsNull() {
-		size = f.Size
+	if f.Size.IsNull() {
+		f.Size = zgeo.SizeBoth(20)
 	}
-	av := zui.ActivityViewNew(size)
+	f.SetEdited = false
+	av := zui.ActivityViewNew(f.Size)
 	av.AlwaysVisible = f.Visible
 	return av
 }
