@@ -101,6 +101,8 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 		f.SetFont(label, font)
 		stack.Add(label, zgeo.TopLeft)
 	}
+	// zlog.Info("buildStackFromSlice:", f.ID, sliceVal.Len())
+
 	for n := 0; n < sliceVal.Len(); n++ {
 		var view zui.View
 		a := zgeo.Center
@@ -132,8 +134,8 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 				vert = true
 			}
 			// fmt.Printf("buildStackFromSlice element: %s %p\n", f.FieldName, childStruct)
-
-			fieldView = fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, v.labelizeWidth, v.immediateEdit, v)
+			params := FieldViewParametersDefault()
+			fieldView = fieldViewNew(f.ID, vert, childStruct, params, zgeo.Size{}, v)
 			view = fieldView
 			fieldView.parentField = f
 			a := zgeo.Left //| zgeo.HorExpand
@@ -158,6 +160,11 @@ func (v *FieldView) buildStackFromSlice(structure interface{}, vertical, showSta
 		}
 		collapse := single && n != selectedIndex
 		stack.CollapseChild(view, collapse, false)
+		zlog.Assert(view != nil)
+	}
+	if f.MinWidth == 0 && f.Size.W != 0 {
+		flen := float64(sliceVal.Len())
+		f.MinWidth = f.Size.W*flen + f.Spacing*(flen-1)
 	}
 	if single {
 		zlog.Assert(!f.IsStatic())

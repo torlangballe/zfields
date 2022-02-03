@@ -32,11 +32,21 @@ type FieldView struct {
 	structure   interface{} // structure of ALL, not just a row
 	changed     bool
 	//	oldStructure  interface{}
-	id            string
-	handleUpdate  func(edited bool)
-	labelizeWidth float64
-	immediateEdit bool
+	id           string
+	handleUpdate func(edited bool)
+	FieldViewParameters
 	//	getSubStruct  func(structID string, direct bool) interface{}
+}
+
+type FieldViewParameters struct {
+	HideStatic    bool
+	Spacing       float64
+	LabelizeWidth float64
+	ImmediateEdit bool
+}
+
+func FieldViewParametersDefault() FieldViewParameters {
+	return FieldViewParameters{ImmediateEdit: true, Spacing: 10}
 }
 
 var fieldViewEdited = map[string]time.Time{}
@@ -62,22 +72,22 @@ func IsFieldViewEditedRecently(fv *FieldView) bool {
 	return false
 }
 
-func fieldViewNew(id string, vertical bool, structure interface{}, spacing float64, marg zgeo.Size, labelizeWidth float64, immediateEdit bool, parent *FieldView) *FieldView {
+func fieldViewNew(id string, vertical bool, structure interface{}, params FieldViewParameters, marg zgeo.Size, parent *FieldView) *FieldView {
 	// start := time.Now()
 	v := &FieldView{}
 	v.StackView.Init(v, vertical, id)
-	// zlog.Info("fieldViewNew", immediateEdit)
+	v.SetSpacing(params.Spacing)
+	// zlog.Info("fieldViewNew", id, params.Spacing)
 	v.SetMargin(zgeo.RectFromMinMax(marg.Pos(), marg.Pos().Negative()))
 	v.structure = structure
-	v.labelizeWidth = labelizeWidth
-	v.immediateEdit = immediateEdit
+	v.FieldViewParameters = params
 	v.id = id
 	v.parent = parent
 	children := v.getStructItems()
 
 	for i, item := range children {
 		var f Field
-		if f.makeFromReflectItem(structure, item, i, immediateEdit) {
+		if f.makeFromReflectItem(structure, item, i, params.ImmediateEdit) {
 			// zlog.Info("fieldViewNew f:", f.Name, f.UpdateSecs)
 			v.fields = append(v.fields, f)
 		}
@@ -418,8 +428,8 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 	}
 }
 
-func FieldViewNew(id string, structure interface{}, labelizeWidth float64, immediateEdit bool) *FieldView {
-	v := fieldViewNew(id, true, structure, 12, zgeo.Size{10, 10}, labelizeWidth, immediateEdit, nil)
+func FieldViewNew(id string, structure interface{}, params FieldViewParameters) *FieldView {
+	v := fieldViewNew(id, true, structure, params, zgeo.Size{10, 10}, nil)
 	return v
 }
 
@@ -780,6 +790,9 @@ func (v *FieldView) makeText(item zreflect.Item, f *Field, noUpdate bool) zui.Vi
 	if cols == 0 {
 		cols = 20
 	}
+	if f.Flags&flagIsPassword != 0 {
+		style.KeyboardType = zui.KeyboardTypePassword
+	}
 	tv := zui.TextViewNew(str, style, cols, f.Rows)
 	tv.SetObjectName(f.ID)
 	f.SetFont(tv, nil)
@@ -888,7 +901,7 @@ func (v *FieldView) updateSinceTime(label *zui.Label, f *Field) {
 
 func (v *FieldView) MakeGroup(f *Field) {
 	v.SetMargin(zgeo.RectFromXY2(10, 20, -10, -10))
-	v.SetBGColor(zgeo.ColorNewGray(0, 0.1))
+	v.SetBGColor(zgeo.ColorNewGray(0, 0.05))
 	v.SetCorner(8)
 	v.SetDrawHandler(func(rect zgeo.Rect, canvas *zui.Canvas, view zui.View) {
 		t := zui.TextInfoNew()
@@ -1011,194 +1024,198 @@ func (v *FieldView) createSpecialView(item zreflect.Item, f *Field, children []z
 
 func (v *FieldView) buildStack(name string, defaultAlign zgeo.Alignment, showStatic bool, cellMargin zgeo.Size, useMinWidth bool, inset float64) {
 	zlog.Assert(reflect.ValueOf(v.structure).Kind() == reflect.Ptr, name, v.structure)
-	// fmt.Println("buildStack1", name, defaultAlign)
+	// fmt.Println("buildStack1", name, defaultAlign, useMinWidth)
 	children := v.getStructItems()
-	labelizeWidth := v.labelizeWidth
-	if v.parentField != nil && v.labelizeWidth == 0 {
-		labelizeWidth = v.parentField.LabelizeWidth
-	}
 	for j, item := range children {
-		exp := zgeo.AlignmentNone
 		f := findFieldWithIndex(&v.fields, j)
 		if f == nil {
 			//			zlog.Error(nil, "no field for index", j)
 			continue
 		}
-		if !showStatic && f.IsStatic() {
-			continue
-		}
-		// zlog.Info("   buildStack2", j, f.Name, item)
-		// if f.FieldName == "CPU" {
-		// 	zlog.Info("   buildStack1.2", j, item.Value.Len())
-		// }
+		v.buildItem(f, item, j, children, defaultAlign, showStatic, cellMargin, useMinWidth)
+	}
+}
 
-		view := v.createSpecialView(item, f, children)
-		if view == nil {
-			switch f.Kind {
-			case zreflect.KindStruct:
-				// zlog.Info("make stringer?:", f.Name, got)
-				col, got := item.Interface.(zgeo.Color)
+func (v *FieldView) buildItem(f *Field, item zreflect.Item, index int, children []zreflect.Item, defaultAlign zgeo.Alignment, showStatic bool, cellMargin zgeo.Size, useMinWidth bool) {
+	labelizeWidth := v.LabelizeWidth
+	if v.parentField != nil && v.LabelizeWidth == 0 {
+		labelizeWidth = v.parentField.LabelizeWidth
+	}
+	exp := zgeo.AlignmentNone
+	if !showStatic && f.IsStatic() {
+		return
+	}
+	// zlog.Info("   buildStack2", j, f.Name, item)
+	// if f.FieldName == "CPU" {
+	// 	zlog.Info("   buildStack1.2", j, item.Value.Len())
+	// }
+
+	view := v.createSpecialView(item, f, children)
+	if view == nil {
+		switch f.Kind {
+		case zreflect.KindStruct:
+			// zlog.Info("make stringer?:", f.Name, got)
+			col, got := item.Interface.(zgeo.Color)
+			if got {
+				view = zui.ColorViewNew(col)
+			} else {
+				exp = zgeo.HorExpand
+				// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
+				childStruct := item.Address
+				vert := true
+				if !f.Vertical.IsUndetermined() {
+					vert = f.Vertical.Bool()
+				}
+				// zlog.Info("struct fieldViewNew", f.ID, vert, f.Vertical)
+
+				fieldView := fieldViewNew(f.ID, vert, childStruct, v.FieldViewParameters, zgeo.Size{}, v)
+				fieldView.parentField = f
+				if f.IsGroup {
+					fieldView.MakeGroup(f)
+				}
+				view = fieldView
+				fieldView.buildStack(f.ID, zgeo.TopLeft, showStatic, zgeo.Size{}, true, 5)
+			}
+
+		case zreflect.KindBool:
+			b := zbool.ToBoolInd(item.Value.Interface().(bool))
+			exp = zgeo.AlignmentNone
+			view = v.makeCheckbox(f, b)
+
+		case zreflect.KindInt:
+			if item.TypeName == "BoolInd" {
+				exp = zgeo.HorShrink
+				view = v.makeCheckbox(f, zbool.BoolInd(item.Value.Int()))
+			} else {
+				_, got := item.Interface.(zbool.BitsetItemsOwner)
 				if got {
-					view = zui.ColorViewNew(col)
-				} else {
-					exp = zgeo.HorExpand
-					// zlog.Info("struct make field view:", f.Name, f.Kind, exp)
-					childStruct := item.Address
-					vert := true
-					if !f.Vertical.IsUndetermined() {
-						vert = f.Vertical.Bool()
-					}
-					// zlog.Info("struct fieldViewNew", f.ID, vert, f.Vertical)
-
-					fieldView := fieldViewNew(f.ID, vert, childStruct, 10, zgeo.Size{}, labelizeWidth, v.immediateEdit, v)
-					fieldView.parentField = f
-					if f.IsGroup {
-						fieldView.MakeGroup(f)
-					}
-					view = fieldView
-					fieldView.buildStack(f.ID, zgeo.TopLeft, showStatic, zgeo.Size{}, true, 5)
-				}
-
-			case zreflect.KindBool:
-				b := zbool.ToBoolInd(item.Value.Interface().(bool))
-				exp = zgeo.AlignmentNone
-				view = v.makeCheckbox(f, b)
-
-			case zreflect.KindInt:
-				if item.TypeName == "BoolInd" {
-					exp = zgeo.HorShrink
-					view = v.makeCheckbox(f, zbool.BoolInd(item.Value.Int()))
-				} else {
-					_, got := item.Interface.(zbool.BitsetItemsOwner)
-					if got {
-						view = makeFlagStack(item, f)
-						break
-					}
-					noUpdate := true
-					view = v.makeText(item, f, noUpdate)
-				}
-
-			case zreflect.KindFloat:
-				noUpdate := true
-				view = v.makeText(item, f, noUpdate)
-
-			case zreflect.KindString:
-				if f.Flags&flagIsImage != 0 {
-					view = v.makeImage(item, f)
-				} else {
-					if (f.MaxWidth != f.MinWidth || f.MaxWidth != 0) && f.Flags&flagIsButton == 0 {
-						exp = zgeo.HorExpand
-					}
-					view = v.makeText(item, f, false)
-				}
-
-			case zreflect.KindSlice:
-				getter, _ := item.Interface.(zdict.ItemsGetter)
-				if getter != nil {
-					menu := v.makeMenu(item, f, getter.GetItems())
-					view = menu
+					view = makeFlagStack(item, f)
 					break
 				}
-				//				zlog.Info("Make slice:", v.ObjectName(), f.FieldName, , labelizeWidth)
-				if f.Alignment != zgeo.AlignmentNone {
-					exp = zgeo.Expand
-				} else {
-					exp = zgeo.AlignmentNone
-				}
-				vert := v.Vertical
-				if labelizeWidth != 0 {
-					vert = false
-				}
-				// zlog.Info("call buildStackFromSlice:", vert, v.ObjectName(), f.WidgetName)
-				view = v.buildStackFromSlice(v.structure, vert, showStatic, f)
-				break
-
-			case zreflect.KindTime:
-				columns := f.Columns
-				if columns == 0 {
-					columns = getColumnsForTime(f)
-				}
 				noUpdate := true
 				view = v.makeText(item, f, noUpdate)
-				if f.IsStatic() {
-					label := view.(*zui.Label)
-					label.Columns = columns
-					if f.Flags&flagIsDuration != 0 || f.OldSecs != 0 {
-						timer := ztimer.RepeatNow(1, func() bool {
-							nlabel := view.(*zui.Label)
-							if f.Flags&flagIsDuration != 0 {
-								v.updateSinceTime(nlabel, f)
-							} else {
-								v.updateOldTime(nlabel, f)
-							}
-							return true
-						})
-						v.AddOnRemoveFunc(timer.Stop)
-						zui.ViewGetNative(view).AddOnRemoveFunc(timer.Stop)
-					}
-				}
-
-			default:
-				panic(fmt.Sprintln("buildStack bad type:", f.Name, f.Kind))
 			}
-		}
-		pt, _ := view.(zui.Pressable)
-		if pt != nil {
-			ph := pt.PressedHandler()
-			nowItem := item // store item in nowItem so closures below uses right item
-			pt.SetPressedHandler(func() {
-				if !v.callActionHandlerFunc(f, PressedAction, nowItem.Interface, &view) && ph != nil {
-					ph()
-				}
-			})
-			lph := pt.LongPressedHandler()
-			pt.SetLongPressedHandler(func() {
-				// zlog.Info("Field.LPH:", f.ID)
-				if !v.callActionHandlerFunc(f, LongPressedAction, nowItem.Interface, &view) && lph != nil {
-					lph()
-				}
-			})
 
-		}
-		updateItemLocalToolTip(f, children, view)
-		if !f.Shadow.Delta.IsNull() {
-			nv := zui.ViewGetNative(view)
-			nv.SetDropShadow(f.Shadow)
-		}
-		view.SetObjectName(f.ID)
-		if len(f.Colors) != 0 {
-			view.SetColor(zgeo.ColorFromString(f.Colors[0]))
-		}
-		v.callActionHandlerFunc(f, CreatedViewAction, item.Address, &view)
-		cell := &zui.ContainerViewCell{}
-		def := defaultAlign
-		all := zgeo.Left | zgeo.HorCenter | zgeo.Right
-		if f.Alignment&all != 0 {
-			def &= ^all
-		}
-		cell.Margin = cellMargin
-		cell.Alignment = def | exp | f.Alignment
-		if labelizeWidth != 0 {
-			var lstack *zui.StackView
-			title := f.Name
-			if f.Flags&flagNoTitle != 0 {
-				title = ""
+		case zreflect.KindFloat:
+			noUpdate := true
+			view = v.makeText(item, f, noUpdate)
+
+		case zreflect.KindString:
+			if f.Flags&flagIsImage != 0 {
+				view = v.makeImage(item, f)
+			} else {
+				if (f.MaxWidth != f.MinWidth || f.MaxWidth != 0) && f.Flags&flagIsButton == 0 {
+					exp = zgeo.HorExpand
+				}
+				view = v.makeText(item, f, false)
 			}
-			_, lstack, cell = zui.Labelize(view, title, labelizeWidth, cell.Alignment)
-			v.AddView(lstack, zgeo.HorExpand|zgeo.Left|zgeo.Top)
+
+		case zreflect.KindSlice:
+			getter, _ := item.Interface.(zdict.ItemsGetter)
+			if getter != nil {
+				menu := v.makeMenu(item, f, getter.GetItems())
+				view = menu
+				break
+			}
+			//				zlog.Info("Make slice:", v.ObjectName(), f.FieldName, , labelizeWidth)
+			if f.Alignment != zgeo.AlignmentNone {
+				exp = zgeo.Expand
+			} else {
+				exp = zgeo.AlignmentNone
+			}
+			vert := v.Vertical
+			if labelizeWidth != 0 {
+				vert = false
+			}
+			view = v.buildStackFromSlice(v.structure, vert, showStatic, f)
+			// zlog.Info("called buildStackFromSlice:", vert, v.ObjectName(), f.MinWidth, f.WidgetName)
+			break
+
+		case zreflect.KindTime:
+			columns := f.Columns
+			if columns == 0 {
+				columns = getColumnsForTime(f)
+			}
+			noUpdate := true
+			view = v.makeText(item, f, noUpdate)
+			if f.IsStatic() {
+				label := view.(*zui.Label)
+				label.Columns = columns
+				if f.Flags&flagIsDuration != 0 || f.OldSecs != 0 {
+					timer := ztimer.RepeatNow(1, func() bool {
+						nlabel := view.(*zui.Label)
+						if f.Flags&flagIsDuration != 0 {
+							v.updateSinceTime(nlabel, f)
+						} else {
+							v.updateOldTime(nlabel, f)
+						}
+						return true
+					})
+					v.AddOnRemoveFunc(timer.Stop)
+					zui.ViewGetNative(view).AddOnRemoveFunc(timer.Stop)
+				}
+			}
+
+		default:
+			panic(fmt.Sprintln("buildStack bad type:", f.Name, f.Kind))
 		}
-		if useMinWidth {
-			cell.MinSize.W = f.MinWidth
+	}
+	pt, _ := view.(zui.Pressable)
+	if pt != nil {
+		ph := pt.PressedHandler()
+		nowItem := item // store item in nowItem so closures below uses right item
+		pt.SetPressedHandler(func() {
+			if !v.callActionHandlerFunc(f, PressedAction, nowItem.Interface, &view) && ph != nil {
+				ph()
+			}
+		})
+		lph := pt.LongPressedHandler()
+		pt.SetLongPressedHandler(func() {
+			// zlog.Info("Field.LPH:", f.ID)
+			if !v.callActionHandlerFunc(f, LongPressedAction, nowItem.Interface, &view) && lph != nil {
+				lph()
+			}
+		})
+
+	}
+	updateItemLocalToolTip(f, children, view)
+	if !f.Shadow.Delta.IsNull() {
+		nv := zui.ViewGetNative(view)
+		nv.SetDropShadow(f.Shadow)
+	}
+	view.SetObjectName(f.ID)
+	if len(f.Colors) != 0 {
+		view.SetColor(zgeo.ColorFromString(f.Colors[0]))
+	}
+	v.callActionHandlerFunc(f, CreatedViewAction, item.Address, &view)
+	cell := &zui.ContainerViewCell{}
+	def := defaultAlign
+	all := zgeo.Left | zgeo.HorCenter | zgeo.Right
+	if f.Alignment&all != 0 {
+		def &= ^all
+	}
+	cell.Margin = cellMargin
+	cell.Alignment = def | exp | f.Alignment
+	if labelizeWidth != 0 {
+		var lstack *zui.StackView
+		title := f.Name
+		if f.Flags&flagNoTitle != 0 {
+			title = ""
 		}
-		cell.MaxSize.W = f.MaxWidth
-		if f.Flags&flagExpandFromMinSize != 0 {
-			cell.ExpandFromMinSize = true
-		}
-		// zlog.Info("Add Field Item:", useMinWidth, view.ObjectName(), cell.Alignment, f.MinWidth, cell.MinSize.W, cell.MaxSize)
-		if labelizeWidth == 0 {
-			cell.View = view
-			v.AddCell(*cell, -1)
-		}
+		_, lstack, cell = zui.Labelize(view, title, labelizeWidth, cell.Alignment)
+		v.AddView(lstack, zgeo.HorExpand|zgeo.Left|zgeo.Top)
+	}
+	if useMinWidth {
+		cell.MinSize.W = f.MinWidth
+	}
+	cell.MaxSize.W = f.MaxWidth
+	if f.Flags&flagExpandFromMinSize != 0 {
+		cell.ExpandFromMinSize = true
+	}
+	// zlog.Info("Add Field Item:", f.MinWidth, f.MaxWidth, useMinWidth, zui.ViewGetNative(view).Hierarchy(), cell.Alignment, f.MinWidth, cell.MinSize.W, cell.MaxSize)
+	if labelizeWidth == 0 {
+		cell.View = view
+		v.AddCell(*cell, -1)
 	}
 }
 
@@ -1341,6 +1358,10 @@ func (v *FieldView) fieldToDataItem(f *Field, view zui.View, showError bool) (va
 	case zreflect.KindFunc:
 		break
 
+	case zreflect.KindStruct:
+		fv, _ := view.(*FieldView)
+		zlog.Info("ToData struct:", f.Name, fv != nil)
+
 	default:
 		panic(fmt.Sprint("bad type: ", f.Kind))
 	}
@@ -1375,10 +1396,10 @@ func (fv *FieldView) getStructItems() []zreflect.Item {
 	return rootItems.Children
 }
 
-func PresentOKCancelStruct(structPtr interface{}, labelizeWidth float64, showStatic, immediateEdit bool, title string, att zui.PresentViewAttributes, done func(ok bool) bool) {
-	fview := FieldViewNew("OkCancel", structPtr, labelizeWidth, immediateEdit)
+func PresentOKCancelStruct(structPtr interface{}, params FieldViewParameters, title string, att zui.PresentViewAttributes, done func(ok bool) bool) {
+	fview := FieldViewNew("OkCancel", structPtr, params)
 	update := true
-	fview.Build(update, showStatic)
+	fview.Build(update, !params.HideStatic)
 	zui.PresentOKCanceledView(fview, title, att, func(ok bool) bool {
 		if ok {
 			err := fview.ToData(true)
