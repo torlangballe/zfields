@@ -274,8 +274,10 @@ func (v *TableView) createRow(rowSize zgeo.Size, rowID string, i int) zui.View {
 
 func (v *TableView) createRowFromData(data interface{}, rowID string) zui.View {
 	name := "row " + rowID
-	immediateEdit := false
-	fv := FieldViewNew(rowID, data, 0, immediateEdit)
+	params := FieldViewParametersDefault()
+	params.ImmediateEdit = false
+	params.Spacing = 0
+	fv := FieldViewNew(rowID, data, params)
 	fv.Vertical = false
 	fv.fields = v.fields
 	fv.SetSpacing(0)
