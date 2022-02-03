@@ -35,7 +35,14 @@ type UIStringer interface {
 type Widgeter interface {
 	Create(f *Field) zui.View
 	SetValue(view zui.View, val interface{})
+}
+
+type ReadWidgeter interface {
 	GetValue(view zui.View) interface{}
+}
+
+type SetupWidgeter interface {
+	SetupField(f *Field)
 }
 
 const (
@@ -223,6 +230,8 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 		n, floatErr := strconv.ParseFloat(val, 32)
 		flag := zbool.FromString(val, false)
 		switch key {
+		case "password":
+			f.Flags |= flagIsPassword
 		case "setedited":
 			f.SetEdited = flag
 		case "format":
@@ -277,6 +286,11 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			f.SortPriority = int(n)
 		case "actions":
 			f.Flags |= flagIsActions
+		case "size":
+			f.Size.FromString(val)
+			if f.Size.IsNull() {
+				f.Size = zgeo.SizeBoth(n)
+			}
 		case "minwidth":
 			if floatErr == nil {
 				f.MinWidth = n
@@ -562,6 +576,16 @@ func (f *Field) makeFromReflectItem(structure interface{}, item zreflect.Item, i
 			}
 		}
 	}
+	if f.WidgetName != "" {
+		w := widgeters[f.WidgetName]
+		if w != nil {
+			sw, _ := w.(SetupWidgeter)
+			if sw != nil {
+				sw.SetupField(f)
+			}
+		}
+	}
+
 	callActionHandlerFunc(structure, f, SetupFieldAction, item.Address, nil) // need to use v.structure here, since i == -1
 	// zlog.Info("Field:", f.ID, f.MinWidth, f.Size, f.MaxWidth)
 	return true
