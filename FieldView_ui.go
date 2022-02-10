@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/torlangballe/zui"
+	"github.com/torlangballe/zui/zimage"
 	"github.com/torlangballe/zutil/zbool"
 	"github.com/torlangballe/zutil/zdict"
 	"github.com/torlangballe/zutil/zfloat"
@@ -399,7 +400,7 @@ func (v *FieldView) Update(dontOverwriteEdited bool) {
 				} else if path == "" || f.Flags&flagIsFixed != 0 {
 					path = f.ImageFixedPath
 				}
-				io := fview.(zui.ImageOwner)
+				io := fview.(zimage.Owner)
 				io.SetImage(nil, path, nil)
 			} else {
 				if f.IsStatic() {
